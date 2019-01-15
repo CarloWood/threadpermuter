@@ -1,4 +1,5 @@
 #include "sys.h"
+#include "debug.h"
 #include "ThreadPermuter.h"
 #include <iostream>
 
