@@ -1,3 +1,4 @@
+#include "sys.h"
 #include "ThreadPermuter.h"
 #include <iostream>
 
@@ -27,6 +28,8 @@ void on_permutation_done(TestRun const& test_run)
 
 int main()
 {
+  Debug(NAMESPACE_DEBUG::init());
+
   TestRun test_run;
 
   ThreadPermuter::tests_type tests =
