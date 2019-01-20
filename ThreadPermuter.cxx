@@ -1,3 +1,4 @@
+#include "sys.h"
 #include "ThreadPermuter.h"
 #include "Permutation.h"
 #include <iostream>
@@ -15,7 +16,8 @@ void ThreadPermuter::run()
   int const n = m_threads.size();
 
   // Start all threads and initialize an empty Permutation (no steps).
-  for (int thi = 0; thi < n; ++thi)
+  thi_type end(n);
+  for (thi_type thi(0); thi < end; ++thi)
   {
     m_threads[thi].start();
     permutation.add(thi);
@@ -23,10 +25,7 @@ void ThreadPermuter::run()
 
   do
   {
-    std::cout << permutation << std::endl;
     permutation.play();
-    permutation.complete();
-    std::cout << permutation << std::endl;
     m_on_permutation_done();
   }
   while (permutation.next());

@@ -7,24 +7,24 @@ struct TestRun
 {
 };
 
-void test0(int i)
+void test0(TestRun const& test_run)
 {
-  std::cout << "Calling test0(" << i << ")\n";
+  std::cout << "Calling test0()" << std::endl;
 }
 
-void test1(std::string s)
+void test1(TestRun const& test_run)
 {
-  std::cout << "Calling test1(\"" << s << "\")\n";
+  std::cout << "Calling test1()" << std::endl;
 }
 
-void test2(double d)
+void test2(TestRun const& test_run)
 {
-  std::cout << "Calling test2(" << d << ")\n";
+  std::cout << "Calling test2()" << std::endl;
 }
 
 void on_permutation_done(TestRun const& test_run)
 {
-  std::cout << "Calling on_permutation_done()\n";
+  std::cout << "Calling on_permutation_done()" << std::endl;
 }
 
 int main()
@@ -35,9 +35,9 @@ int main()
 
   ThreadPermuter::tests_type tests =
   {
-    []{test0(42);},
-    []{test1("Hello World");},
-    []{test2(3.14);}
+    [test_run]{test0(test_run);},
+    [test_run]{test1(test_run);},
+    [test_run]{test2(test_run);}
   };
 
   ThreadPermuter tp(tests, [test_run]{ on_permutation_done(test_run); });

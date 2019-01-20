@@ -4,7 +4,7 @@ SUBDIRS = @CW_SUBDIRS@
 
 AM_CPPFLAGS = -iquote $(top_srcdir) -iquote $(top_srcdir)/cwds
 
-bin_PROGRAMS = bstest #permute_test
+bin_PROGRAMS = bstest permute_test
 
 bstest_SOURCES = bstest.cxx
 bstest_CXXFLAGS = @LIBCWD_R_FLAGS@

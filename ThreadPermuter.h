@@ -1,8 +1,27 @@
 #pragma once
 
 #include "Thread.h"
-#include <vector>
+#include "utils/Vector.h"
+#include "utils/BitSet.h"
 #include <functional>
+
+// VectorIndex category.
+namespace vector_index_category {
+
+// An index that specifies the test function (and corresponding thread).
+// Initially defined by the first parameter passed to the constructor of ThreadPermuter.
+struct thread_index;
+
+} // namespace vector_index_category
+
+// A type that can be used as index into ThreadPermuter::tests_type and ThreadPermuter::threads_type.
+class ThreadIndex : public utils::VectorIndex<vector_index_category::thread_index>
+{
+  using utils::VectorIndex<vector_index_category::thread_index>::VectorIndex;
+ public:
+  // Allow bitset::Index to be used where ThreadIndex is required.
+  ThreadIndex(utils::bitset::Index index) : utils::VectorIndex<vector_index_category::thread_index>(index()) { }
+};
 
 // An object of this type allows one to explore
 // the possible results of running two or more
@@ -11,8 +30,9 @@
 class ThreadPermuter
 {
  public:
-  using tests_type = std::vector<std::function<void()>>;
-  using threads_type = std::vector<thread_permuter::Thread>;
+  using thi_type = ThreadIndex;
+  using tests_type = utils::Vector<std::function<void()>, thi_type>;
+  using threads_type = utils::Vector<thread_permuter::Thread, thi_type>;
 
   ThreadPermuter(tests_type const& tests, std::function<void()> on_permutation_done);
 
