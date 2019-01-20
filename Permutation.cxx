@@ -19,14 +19,16 @@ void Permutation::play(bool run_complete)
 {
   using namespace utils::bitset;
 
-  IndexPOD one_beyond_pod = { static_cast<int8_t>(m_threads.size()) };
-  Index one_beyond(one_beyond_pod);
-  m_running_threads = --threads_set_type(one_beyond);
+  thi_type thread_end(m_threads.size());
+  m_running_threads = index2mask(thread_end) - 1;       // Set all threads to running.
   for (auto thi : m_steps)
   {
-    // Reset bit thi when step() returns true.
-    m_running_threads &= m_threads[thi].step() ? ~index2mask(thi) : m_running_threads;
+    // Reset bit thi when step() returns true, which means that
+    // that thread finished and is no longer running after this step.
+    if (m_threads[thi].step())
+      m_running_threads &= ~index2mask(thi);
   }
+  // Complete the permutation by running all remaining threads till they are finished too, if so requested.
   if (run_complete)
     complete();
 }
@@ -39,14 +41,12 @@ void Permutation::complete()
   // There must always be at least one still running thread.
   ASSERT(m_running_threads.any());
   // First run all but the last running thread to completion while adding them to m_steps.
-  Index const last_thi = m_running_threads.mssbi();
+  Index const last_thi = m_running_threads.mssbi();     // The Index of the Most Significant Set Bit in m_running_threads.
+  // Run over all running threads except the last one.
   for (Index thi = m_running_threads.lssbi(); thi != last_thi; thi.next_bit_in(m_running_threads))
   {
-    do
-    {
-      m_steps.push_back(thi);
-    }
-    while (!m_threads[thi].step());
+    // Run thread thi to completion, recording what we do in m_steps.
+    do { m_steps.push_back(thi); } while (!m_threads[thi].step());
   }
   // Now there is only one running thread left.
   m_running_threads = last_thi;
