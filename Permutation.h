@@ -16,8 +16,6 @@ class Permutation
 
   Permutation(ThreadPermuter::threads_type& threads) : m_threads(threads), m_running_threads(0) { }
 
-  void add(thi_type thi);
-
   void play(bool run_complete = true);          // Play the whole recorded permutation (if run_complete is false only play what is in m_steps).
   void complete();                              // Complete a play()-ed permutation.
   bool next();                                  // Prepare for the next play(). Returns false when there isn't one.

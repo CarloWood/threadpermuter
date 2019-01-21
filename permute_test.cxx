@@ -9,22 +9,22 @@ struct TestRun
 
 void test0(TestRun const& test_run)
 {
-  std::cout << "Calling test0()" << std::endl;
+  Dout(dc::notice, "Calling test0()");
 }
 
 void test1(TestRun const& test_run)
 {
-  std::cout << "Calling test1()" << std::endl;
+  Dout(dc::notice, "Calling test1()");
 }
 
 void test2(TestRun const& test_run)
 {
-  std::cout << "Calling test2()" << std::endl;
+  Dout(dc::notice, "Calling test2()");
 }
 
 void on_permutation_done(TestRun const& test_run)
 {
-  std::cout << "Calling on_permutation_done()" << std::endl;
+  Dout(dc::notice|flush_cf, "Calling on_permutation_done()");
 }
 
 int main()

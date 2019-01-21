@@ -12,21 +12,22 @@ void ThreadPermuter::run()
 {
   Permutation permutation(m_threads);
 
-  // Total number of threads.
-  int const n = m_threads.size();
-
-  // Start all threads and initialize an empty Permutation (no steps).
-  thi_type end(n);
+  // Start all threads.
+  thi_type const end(m_threads.size());
   for (thi_type thi(0); thi < end; ++thi)
-  {
     m_threads[thi].start();
-    permutation.add(thi);
-  }
 
   do
   {
+    // Play one permutation.
     permutation.play();
+    // Notify that the program has finished.
     m_on_permutation_done();
   }
-  while (permutation.next());
+  while (permutation.next());   // Continue with the next permutation, if any.
+
+  Dout(dc::notice|flush_cf, "All permutations finished.");
+
+  for (thi_type thi(0); thi < end; ++thi)
+    m_threads[thi].stop();
 }

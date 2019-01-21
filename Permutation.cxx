@@ -9,11 +9,6 @@ inline Permutation::threads_set_type index2mask(Permutation::thi_type thi)
   return Permutation::threads_set_type(static_cast<Permutation::mask_type>(1) << thi.get_value());
 }
 
-void Permutation::add(thi_type thi)
-{
-  m_running_threads |= index2mask(thi);
-}
-
 // Play back the recording.
 void Permutation::play(bool run_complete)
 {
