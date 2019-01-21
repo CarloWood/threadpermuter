@@ -21,9 +21,11 @@ void Thread::start()
 void Thread::run()
 {
   Debug(NAMESPACE_DEBUG::init_thread());
+  tl_self = this;                       // Allow a checkpoint to find this object back.
   pause();                              // Wait until we may enter m_test() for the first time.
   do
   {
+    m_permutation_finished = false;
     m_test();                           // Call the test function.
     m_permutation_finished = true;      // Signal that we're finished
     pause();                            // and wait till we may continue with the next permutation,
@@ -64,5 +66,8 @@ void Thread::stop()
   Dout(dc::notice|flush_cf, "Joining with thread " << std::hex << m_thread.get_id());
   m_thread.join();
 }
+
+//static
+thread_local Thread* Thread::tl_self;
 
 } // namespace thread_permuter

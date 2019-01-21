@@ -9,17 +9,23 @@ struct TestRun
 
 void test0(TestRun const& test_run)
 {
-  Dout(dc::notice, "Calling test0()");
+  Dout(dc::notice|flush_cf, "Calling test0()");
+  TPY;
+  Dout(dc::notice|flush_cf, "Leaving test0()");
 }
 
 void test1(TestRun const& test_run)
 {
-  Dout(dc::notice, "Calling test1()");
+  Dout(dc::notice|flush_cf, "Calling test1()");
+  TPY;
+  Dout(dc::notice|flush_cf, "Leaving test1()");
 }
 
 void test2(TestRun const& test_run)
 {
-  Dout(dc::notice, "Calling test2()");
+  Dout(dc::notice|flush_cf, "Calling test2()");
+  TPY;
+  Dout(dc::notice|flush_cf, "Leaving test2()");
 }
 
 void on_permutation_done(TestRun const& test_run)

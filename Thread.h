@@ -28,6 +28,13 @@ class Thread
   std::condition_variable m_paused_condition;
   std::mutex m_paused_mutex;
   bool m_paused;                        // True when the thread is waiting.
+
+  static thread_local Thread* tl_self;  // A thread_local pointer to self.
+
+ public:
+  static void yield() { tl_self->pause(); }
 };
 
 } // namespace thread_permuter
+
+#define TPY do { thread_permuter::Thread::yield(); } while(0)
