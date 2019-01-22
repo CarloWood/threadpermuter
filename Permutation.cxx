@@ -3,26 +3,51 @@
 #include "utils/log2.h"
 #include <iostream>
 
+namespace thread_permuter {
+
 // Allow conversion from thi_type to threads_set_type.
 inline Permutation::threads_set_type index2mask(Permutation::thi_type thi)
 {
   return Permutation::threads_set_type(static_cast<Permutation::mask_type>(1) << thi.get_value());
 }
 
+// Step thread thi and update m_blocked_threads and m_running_threads accordingly.
+// Returns true if after this step the thread is still running (not blocked and not finished).
+bool Permutation::step(thi_type thi)
+{
+  DoutEntering(dc::notice, "Permutation::step(" << thi << ")");
+  threads_set_type thm = index2mask(thi);
+  // This should never happen because we'd never run this in the first place.
+  ASSERT((thm & ~m_blocked_threads & m_running_threads).any());
+  switch (m_threads[thi].step())
+  {
+    case yielding:
+      m_blocked_threads.reset();
+      break;
+    case blocking:
+      m_blocked_threads |= index2mask(thi);
+      break;
+    case finished:
+      // Reset bit thi when step() returns finished, which means that
+      // that thread finished and is no longer running after this step.
+      m_running_threads &= ~index2mask(thi);
+      m_blocked_threads.reset();
+      break;
+  }
+  return (thm & ~m_blocked_threads & m_running_threads).any();
+}
+
 // Play back the recording.
 void Permutation::play(bool run_complete)
 {
+  DoutEntering(dc::notice, "Permutation::play(" << run_complete << ")");
   using namespace utils::bitset;
 
-  thi_type thread_end(m_threads.size());
+  thi_type const thread_end(m_threads.size());
   m_running_threads = index2mask(thread_end) - 1;       // Set all threads to running.
+  m_blocked_threads.reset();                            // Nothing is blocked.
   for (auto thi : m_steps)
-  {
-    // Reset bit thi when step() returns true, which means that
-    // that thread finished and is no longer running after this step.
-    if (m_threads[thi].step())
-      m_running_threads &= ~index2mask(thi);
-  }
+    step(thi);
   // Complete the permutation by running all remaining threads till they are finished too, if so requested.
   if (run_complete)
     complete();
@@ -31,27 +56,40 @@ void Permutation::play(bool run_complete)
 // Run an incomplete permutation to completion.
 void Permutation::complete()
 {
+  DoutEntering(dc::notice, "Permutation::complete()");
   using namespace utils::bitset;
 
-  // There must always be at least one still running thread.
-  ASSERT(m_running_threads.any());
+  // This may never happen.
+  ASSERT(!m_running_threads.none());
   // First run all but the last running thread to completion while adding them to m_steps.
-  Index const last_thi = m_running_threads.mssbi();     // The Index of the Most Significant Set Bit in m_running_threads.
-  // Run over all running threads except the last one.
-  for (Index thi = m_running_threads.lssbi(); thi != last_thi; thi.next_bit_in(m_running_threads))
+  while (!m_running_threads.is_single_bit())
   {
-    // Run thread thi to completion, recording what we do in m_steps.
-    do { m_steps.push_back(thi); } while (!m_threads[thi].step());
+    threads_set_type yielding_threads = m_running_threads & ~m_blocked_threads;
+    if (yielding_threads.none())
+      DoutFatal(dc::core, "Dead locked!");
+    Index thi = yielding_threads.lssbi();
+    m_steps.push_back(thi);
+    m_blocked.push_back(m_blocked_threads);
+    step(thi);
   }
   // Now there is only one running thread left.
-  m_running_threads = last_thi;
+  Index const last_thi = m_running_threads.lssbi();
   // Actually run that one to completion too, but don't add it to m_steps.
-  while (!m_threads[last_thi].step())
-    continue;
+  do
+  {
+    if (m_running_threads == m_blocked_threads)
+      DoutFatal(dc::core, "Dead locked!");
+    step(last_thi);
+  }
+  while (!m_running_threads.none());
+  // We shouldn't have reset m_running_threads though.
+  m_running_threads = last_thi;
 }
 
 bool Permutation::next()
 {
+  DoutEntering(dc::notice, "Permutation::next()");
+  Dout(dc::notice, "Permutation before: " << *this);
   // Advance the permutation to the next.
   //
   // The algorithm here is to find the last step
@@ -89,19 +127,24 @@ bool Permutation::next()
   {
     thi_type thi = m_steps[si];                                                         // As per the above example, assume thi == 2 now.
     threads_set_type thm = index2mask(thi);                                             //               thm = 00000100
+    threads_set_type blocked_threads = m_blocked[si];
     // When scanning further to the left, this thread is now also running.
     m_running_threads |= thm;                                                           // m_running_threads = 00110111
     // Get a copy of m_running_threads without thi.
     threads_set_type hi_rts = m_running_threads ^ thm;                                  //            hi_rts = 00110011
-    if (hi_rts > thm)   // Is there a running thread with an index larger than m_steps[si]?     // Yes, because  ^^__ we have bits here.
+    // Do not consider currently blocked threads.                                                                ^^
+    hi_rts &= ~blocked_threads;                                                         //                       ||
+    if (hi_rts > thm)   // Is there a running thread with an index larger than m_steps[si]?     // Yes, because  \\__ we have bits here.
     {
       // We found the step that needs to be incremented (si).
       // Also remove the thi's that are lower than thi.
-      hi_rts &= ~--thm;                                                                 //            hi_rts = 00110000
+      hi_rts &= ~(thm - 1);                                                             //            hi_rts = 00110000
       // Then increment m_steps[si] to the set index above thi,                                                   ^
       // the index of the least significant set bit in hi_rts.                                                    |
       m_steps[si] = hi_rts.lssbi();                                                     // m_steps[si] = 4 -------'
       m_steps.resize(si + 1);                                                           // Resize m_steps to just "3 4 4".
+      m_blocked.resize(si + 1);         // Note that m_blocked is still correct because it refers to what happened *before* this step.
+      Dout(dc::notice, "Permutation after: " << *this);
       return true;
     }
     --si;
@@ -114,6 +157,8 @@ std::ostream& operator<<(std::ostream& os, Permutation const& permutation)
   os << "Steps:";
   for (auto s : permutation.m_steps)
     os << ' ' << s;
-  os << "; Running: " << permutation.m_running_threads;
+  os << "; running: " << permutation.m_running_threads << "; blocked: " << permutation.m_blocked_threads;
   return os;
 }
+
+} // namespace thread_permuter

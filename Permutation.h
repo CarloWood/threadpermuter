@@ -7,6 +7,8 @@
 #include <iosfwd>
 #include <cstdint>
 
+namespace thread_permuter {
+
 class Permutation
 {
  public:
@@ -16,6 +18,7 @@ class Permutation
 
   Permutation(ThreadPermuter::threads_type& threads) : m_threads(threads), m_running_threads(0) { }
 
+  bool step(thi_type thi);                      // Play a single step on thread thi.
   void play(bool run_complete = true);          // Play the whole recorded permutation (if run_complete is false only play what is in m_steps).
   void complete();                              // Complete a play()-ed permutation.
   bool next();                                  // Prepare for the next play(). Returns false when there isn't one.
@@ -24,7 +27,11 @@ class Permutation
   ThreadPermuter::threads_type& m_threads;      // A reference to the list of Thread objects.
 
   std::vector<thi_type> m_steps;                // Contains a list of thread indexes that did a step;
+  std::vector<threads_set_type> m_blocked;      // The blocked thread just prior to the corresponding step;
   threads_set_type m_running_threads;           // A list of thread indexes that are still running after the last step in m_steps.
+  threads_set_type m_blocked_threads;           // A list of thread indexes that are currently blocked on trying to lock a mutex.
 
   friend std::ostream& operator<<(std::ostream& os, Permutation const& permutation);
 };
+
+} // namespace thread_permuter

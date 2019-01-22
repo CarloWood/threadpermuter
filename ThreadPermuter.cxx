@@ -3,8 +3,13 @@
 #include "Permutation.h"
 #include <iostream>
 
-ThreadPermuter::ThreadPermuter(tests_type const& tests, std::function<void()> on_permutation_done)
-  : m_threads(tests.begin(), tests.end()), m_on_permutation_done(on_permutation_done)
+using namespace thread_permuter;
+
+ThreadPermuter::ThreadPermuter(
+    std::function<void()> on_permutation_begin,
+    tests_type const& tests,
+    std::function<void()> on_permutation_end)
+  : m_threads(tests.begin(), tests.end()), m_on_permutation_begin(on_permutation_begin), m_on_permutation_end(on_permutation_end)
 {
 }
 
@@ -19,10 +24,12 @@ void ThreadPermuter::run()
 
   do
   {
+    // Notify that we start a new program.
+    m_on_permutation_begin();
     // Play one permutation.
     permutation.play();
     // Notify that the program has finished.
-    m_on_permutation_done();
+    m_on_permutation_end();
   }
   while (permutation.next());   // Continue with the next permutation, if any.
 

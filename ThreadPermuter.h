@@ -34,12 +34,13 @@ class ThreadPermuter
   using tests_type = utils::Vector<std::function<void()>, thi_type>;
   using threads_type = utils::Vector<thread_permuter::Thread, thi_type>;
 
-  ThreadPermuter(tests_type const& tests, std::function<void()> on_permutation_done);
+  ThreadPermuter(std::function<void()> on_permutation_begin, tests_type const& tests, std::function<void()> on_permutation_end);
 
   void run();
 
  private:
   threads_type m_threads;                               // The functions, one for each thread, that need to be run.
-  std::function<void()> m_on_permutation_done;          // This callback is called every time after all tests finished,
+  std::function<void()> m_on_permutation_begin;         // This callback is called every time before a new permutation starts.
+  std::function<void()> m_on_permutation_end;           // This callback is called every time after all tests finished,
                                                         // once for each possible permutation.
 };
