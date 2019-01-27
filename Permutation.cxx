@@ -152,6 +152,19 @@ bool Permutation::next()
   return false;
 }
 
+void Permutation::program(std::string const& steps)
+{
+  m_steps.clear();
+  m_blocked.clear();
+  m_running_threads.reset();
+  m_blocked_threads.reset();
+  for (auto c : steps)
+  {
+    size_t thread_id = c - '0';
+    m_steps.push_back(ThreadIndex(thread_id));
+  }
+}
+
 std::ostream& operator<<(std::ostream& os, Permutation const& permutation)
 {
   os << "Steps:";

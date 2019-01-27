@@ -6,6 +6,7 @@
 #include <set>
 #include <iosfwd>
 #include <cstdint>
+#include <string>
 
 namespace thread_permuter {
 
@@ -22,6 +23,9 @@ class Permutation
   void play(bool run_complete = true);          // Play the whole recorded permutation (if run_complete is false only play what is in m_steps).
   void complete();                              // Complete a play()-ed permutation.
   bool next();                                  // Prepare for the next play(). Returns false when there isn't one.
+
+  // Program a given permutation.
+  void program(std::string const& steps);
 
  private:
   ThreadPermuter::threads_type& m_threads;      // A reference to the list of Thread objects.

@@ -35,8 +35,9 @@ class ThreadPermuter
   using threads_type = utils::Vector<thread_permuter::Thread, thi_type>;
 
   ThreadPermuter(std::function<void()> on_permutation_begin, tests_type const& tests, std::function<void()> on_permutation_end);
+  ~ThreadPermuter();
 
-  void run();
+  void run(std::string permutation = {});
 
  private:
   threads_type m_threads;                               // The functions, one for each thread, that need to be run.

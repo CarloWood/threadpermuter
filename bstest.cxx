@@ -38,7 +38,9 @@ int main()
   if (bs1 != bs2)
     std::cerr << "WTF" << std::endl;
 
+#ifdef CWDEBUG
   Dout(dc::notice, "Forward iterating:");
   for (auto m : bs2)
     Dout(dc::notice, "Found bit " << std::hex << m);
+#endif
 }

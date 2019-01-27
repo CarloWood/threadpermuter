@@ -3,6 +3,10 @@
 #include "debug.h"
 #include <mutex>
 
+#ifndef CWDEBUG
+#error "You really want to compile this with libcwd enabled (--enable-debug)"
+#endif
+
 namespace thread_permuter {
 
 Thread::Thread(std::function<void()> test) :
