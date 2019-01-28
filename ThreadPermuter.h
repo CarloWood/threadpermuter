@@ -4,6 +4,7 @@
 #include "utils/Vector.h"
 #include "utils/BitSet.h"
 #include <functional>
+#include <string>
 
 // VectorIndex category.
 namespace vector_index_category {
@@ -34,14 +35,15 @@ class ThreadPermuter
   using tests_type = utils::Vector<std::function<void()>, thi_type>;
   using threads_type = utils::Vector<thread_permuter::Thread, thi_type>;
 
-  ThreadPermuter(std::function<void()> on_permutation_begin, tests_type const& tests, std::function<void()> on_permutation_end);
+  ThreadPermuter(std::function<void()> on_permutation_begin, tests_type const& tests, std::function<void(std::string const&)> on_permutation_end);
   ~ThreadPermuter();
 
   void run(std::string permutation = {});
 
  private:
-  threads_type m_threads;                               // The functions, one for each thread, that need to be run.
-  std::function<void()> m_on_permutation_begin;         // This callback is called every time before a new permutation starts.
-  std::function<void()> m_on_permutation_end;           // This callback is called every time after all tests finished,
-                                                        // once for each possible permutation.
+  threads_type m_threads;                                       // The functions, one for each thread, that need to be run.
+  std::function<void()> m_on_permutation_begin;                 // This callback is called every time before a new permutation starts.
+  std::function<void(std::string const&)> m_on_permutation_end; // This callback is called every time after all tests finished,
+                                                                // once for each possible permutation.
+  std::string m_permutation_string;                             // Records the permutation last executed by play().
 };

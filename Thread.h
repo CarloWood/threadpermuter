@@ -1,5 +1,6 @@
 #pragma once
 
+#include "debug.h"
 #include <functional>
 #include <thread>
 #include <condition_variable>
@@ -18,12 +19,14 @@ class Thread
  public:
   Thread(std::function<void()> test);
 
-  void start();                         // Start the thread and prepare calling step().
+  void start(char thread_name);         // Start the thread and prepare calling step().
   void run();                           // Entry point of m_thread.
   state_type step();                    // Wake up the thread and let it run till the next check point (or finish).
                                         // Returns true when m_test() returned.
   void pause(state_type state);         // Pause the thread and wake up the main thread again.
   void stop();                          // Called when all permutation have been run.
+
+  char get_name() const { return m_thread_name; }
 
  private:
   std::function<void()> m_test;         // Thread entry point. The first time step() is called
@@ -36,11 +39,52 @@ class Thread
   std::mutex m_paused_mutex;
   bool m_paused;                        // True when the thread is waiting.
 
+  char m_thread_name;                   // Used for debugging output; set by start().
+
   static thread_local Thread* tl_self;  // A thread_local pointer to self.
 
  public:
   static void yield() { tl_self->pause(yielding); }
   static void blocked() { tl_self->pause(blocking); }
+  static char name() { return tl_self->get_name(); }
+};
+
+// Use this instead of std::mutex.
+class Mutex
+{
+ private:
+  std::mutex m_mutex;
+
+ public:
+  void lock()
+  {
+    DoutEntering(dc::notice|flush_cf|continued_cf, "lock()... ");
+    while (!m_mutex.try_lock())
+    {
+      Dout(dc::notice|flush_cf, "Blocked on mutex.");
+      Thread::blocked();
+    }
+    Dout(dc::finish|flush_cf, "locked");
+  }
+
+  bool try_lock()
+  {
+    DoutEntering(dc::notice|flush_cf|continued_cf, "try_lock()... ");
+    bool locked = m_mutex.try_lock();
+    Dout(dc::finish|flush_cf, (locked ? "locked" : "failed"));
+    return locked;
+  }
+
+  void unlock()
+  {
+    Dout(dc::notice|flush_cf, "unlock()");
+    m_mutex.unlock();
+  }
+
+  auto native_handle()
+  {
+    return m_mutex.native_handle();
+  }
 };
 
 } // namespace thread_permuter

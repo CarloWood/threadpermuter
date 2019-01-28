@@ -13,12 +13,13 @@ inline Permutation::threads_set_type index2mask(Permutation::thi_type thi)
 
 // Step thread thi and update m_blocked_threads and m_running_threads accordingly.
 // Returns true if after this step the thread is still running (not blocked and not finished).
-bool Permutation::step(thi_type thi)
+bool Permutation::step(thi_type thi, std::string& permutation_string)
 {
   DoutEntering(dc::notice, "Permutation::step(" << thi << ")");
   threads_set_type thm = index2mask(thi);
   // This should never happen because we'd never run this in the first place.
   ASSERT((thm & ~m_blocked_threads & m_running_threads).any());
+  permutation_string += '0' + thi.get_value();
   switch (m_threads[thi].step())
   {
     case yielding:
@@ -38,7 +39,7 @@ bool Permutation::step(thi_type thi)
 }
 
 // Play back the recording.
-void Permutation::play(bool run_complete)
+void Permutation::play(std::string& permutation_string, bool run_complete)
 {
   DoutEntering(dc::notice, "Permutation::play(" << run_complete << ")");
   using namespace utils::bitset;
@@ -47,14 +48,14 @@ void Permutation::play(bool run_complete)
   m_running_threads = index2mask(thread_end) - 1;       // Set all threads to running.
   m_blocked_threads.reset();                            // Nothing is blocked.
   for (auto thi : m_steps)
-    step(thi);
+    step(thi, permutation_string);
   // Complete the permutation by running all remaining threads till they are finished too, if so requested.
   if (run_complete)
-    complete();
+    complete(permutation_string);
 }
 
 // Run an incomplete permutation to completion.
-void Permutation::complete()
+void Permutation::complete(std::string& permuation_string)
 {
   DoutEntering(dc::notice, "Permutation::complete()");
   using namespace utils::bitset;
@@ -70,7 +71,7 @@ void Permutation::complete()
     Index thi = yielding_threads.lssbi();
     m_steps.push_back(thi);
     m_blocked.push_back(m_blocked_threads);
-    step(thi);
+    step(thi, permuation_string);
   }
   // Now there is only one running thread left.
   Index const last_thi = m_running_threads.lssbi();
@@ -79,7 +80,7 @@ void Permutation::complete()
   {
     if (m_running_threads == m_blocked_threads)
       DoutFatal(dc::core, "Dead locked!");
-    step(last_thi);
+    step(last_thi, permuation_string);
   }
   while (!m_running_threads.none());
   // We shouldn't have reset m_running_threads though.

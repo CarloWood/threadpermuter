@@ -11,12 +11,14 @@ namespace thread_permuter {
 
 Thread::Thread(std::function<void()> test) :
   m_test(test), m_state(yielding),
-  m_last_permutation(false), m_paused(false)
+  m_last_permutation(false), m_paused(false),
+  m_thread_name('?')
 {
 }
 
-void Thread::start()
+void Thread::start(char thread_name)
 {
+  m_thread_name = thread_name;
   std::unique_lock<std::mutex> lock(m_paused_mutex);
   // Start thread.
   m_thread = std::thread(&Thread::run, this);

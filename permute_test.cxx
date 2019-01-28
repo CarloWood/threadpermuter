@@ -32,7 +32,7 @@ struct TestRun
   }
 
   void on_permutation_begin();
-  void on_permutation_end();
+  void on_permutation_end(std::string const& permutation_string);
 };
 
 void TestRun::on_permutation_begin()
@@ -42,10 +42,10 @@ void TestRun::on_permutation_begin()
   m_permutation = "";
 }
 
-void TestRun::on_permutation_end()
+void TestRun::on_permutation_end(std::string const& permutation_string)
 {
-  DoutEntering(dc::notice|flush_cf, "on_permutation_end()");
-  Dout(dc::notice|flush_cf, "Permutation: " << m_permutation << "; Result: " << x);
+  DoutEntering(dc::notice|flush_cf, "on_permutation_end(\"" << permutation_string << "\")");
+  Dout(dc::notice|flush_cf, "Result: " << x);
 }
 
 void test0(TestRun& test_run)
@@ -127,7 +127,7 @@ int main()
   ThreadPermuter tp(
       [&]{ test_run.on_permutation_begin(); },
       tests,
-      [&]{ test_run.on_permutation_end(); });
+      [&](std::string const& permutation_string){ test_run.on_permutation_end(permutation_string); });
 
   tp.run();
 }
