@@ -84,22 +84,24 @@ class B : public FuzzyTracker
 {
  private:
   Mutex m_started_mutex;
+  bool m_started_init;
+  bool m_empty_init;
   bool m_started;
   bool m_started_expected;
   utils::FuzzyBool m_empty;
 
  public:
-  B(bool started, bool empty) : m_started(started), m_empty(empty) { }
+  B(bool started, bool empty) : m_started_init(started), m_empty_init(empty) { }
   friend std::ostream& operator<<(std::ostream& os, B const& b);
 
-  utils::FuzzyBool is_empty(FuzzyLock& UNUSED_ARG(fl)) const
+  utils::FuzzyBool is_empty(FuzzyLock&) const
   {
     // The FuzzyLock is unused here - the parameter is only there to force the user to create a FuzzyLock object.
     Dout(dc::notice|flush_cf, "thread " << Thread::name() << ": Testing (m_empty = " << m_empty << ")");
     return m_empty;
   }
 
-  void set_empty(utils::FuzzyBool empty)
+  void set_empty(utils::FuzzyBoolPOD empty)
   {
     Dout(dc::notice|flush_cf, "thread " << Thread::name() << ": calling set_empty(" << empty << ").");
     m_empty = empty;
@@ -112,16 +114,17 @@ class B : public FuzzyTracker
 
   void start_if(utils::FuzzyBool condition, FuzzyLock& fl)
   {
-    Dout(dc::notice|flush_cf, "thread " << Thread::name() << ": Calling start(" << condition << ")");
+    Dout(dc::notice|flush_cf, "thread " << Thread::name() << ": Calling start_if(" << condition << ")");
     ASSERT(!condition.unlikely());
     if (condition.never())
       return;
     std::lock_guard<Mutex> lk(m_started_mutex);
     if (!condition.always() && condition.likely())
     {
-      if (fl.is_polluted())
+      Dout(dc::notice|flush_cf, "Testing is_polluted()");
+      if (is_empty(fl).likely())
       {
-        Dout(dc::notice|flush_cf, "Ignoring call to start_if() because condition is WasTrue and FuzzyLock is polluted.");
+        Dout(dc::notice|flush_cf, "Ignoring call to start_if() because condition is WasTrue and is_empty() returns likely.");
         return;
       }
     }
@@ -129,7 +132,7 @@ class B : public FuzzyTracker
     m_started = true;
   }
 
-  void stop_if(utils::FuzzyBool condition, FuzzyLock& fl)
+  void stop_if(utils::FuzzyBool const& condition, FuzzyLock& fl)
   {
     Dout(dc::notice|flush_cf, "thread " << Thread::name() << ": Calling stop_if(" << condition << ")");
     ASSERT(!condition.unlikely());
@@ -138,9 +141,9 @@ class B : public FuzzyTracker
     std::lock_guard<Mutex> lk(m_started_mutex);
     if (!condition.always() && condition.likely())      // condition == WasTrue
     {
-      if (fl.is_polluted())
+      if (is_empty(fl).unlikely())
       {
-        Dout(dc::notice|flush_cf, "Ignoring call to stop_if() because condition is WasTrue and FuzzyLock is polluted.");
+        Dout(dc::notice|flush_cf, "Ignoring call to stop_if() because condition is WasTrue and is_empty() returns unlikely.");
         return;
       }
     }
@@ -156,6 +159,8 @@ void B::on_permutation_begin()
 {
   DoutEntering(dc::notice|flush_cf, "on_permutation_begin()");
   Dout(dc::notice|flush_cf, "Before: " << *this);
+  m_started = m_started_init;
+  m_empty = m_empty_init ? fuzzy::True : fuzzy::False;
 }
 
 void B::on_permutation_end(std::string const& permutation)
