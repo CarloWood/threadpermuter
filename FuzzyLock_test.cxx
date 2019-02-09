@@ -7,80 +7,7 @@
 
 using namespace thread_permuter;
 
-class FuzzyLock;
-
-class FuzzyTracker
-{
- private:
-  Mutex m_mutex;
-  FuzzyLock* m_first;
-
- private:
-  void pollute(FuzzyLock* ptr);
-
- public:
-  FuzzyTracker() : m_first(nullptr) { }
-
-  void lock(FuzzyLock* ptr)
-  {
-    DoutEntering(dc::notice|flush_cf, "lock([" << ptr << "])");
-    std::lock_guard<Mutex> lk(m_mutex);
-    if (AI_UNLIKELY(m_first != nullptr))
-      pollute(m_first);
-    Dout(dc::notice|flush_cf, "Setting m_first to " << ptr);
-    m_first = ptr;
-  }
-
-  void unlock(FuzzyLock* ptr)
-  {
-    DoutEntering(dc::notice|flush_cf, "unlock([" << ptr << "])");
-    std::lock_guard<Mutex> lk(m_mutex);
-    if (AI_LIKELY(m_first == ptr))
-    {
-      Dout(dc::notice|flush_cf, "Setting m_first to nullptr");
-      m_first = nullptr;
-    }
-  }
-};
-
-class FuzzyLock
-{
- private:
-  FuzzyTracker& m_tracker;
-  std::atomic_bool m_polluted;
-
- public:
-  FuzzyLock(FuzzyTracker& tracker) : m_tracker(tracker), m_polluted(false)
-  {
-    DoutEntering(dc::notice|flush_cf, "thread " << Thread::name() << ": FuzzyLock() [" << this << "])");
-    m_tracker.lock(this);
-  }
-
-  ~FuzzyLock()
-  {
-    DoutEntering(dc::notice|flush_cf, "thread " << Thread::name() << ": ~FuzzyLock() [" << this << "])");
-    m_tracker.unlock(this);
-  }
-
-  void pollute()
-  {
-    DoutEntering(dc::notice|flush_cf, "thread " << Thread::name() << ": pollute() [" << this << "])");
-    m_polluted = true;
-  }
-
-  bool is_polluted() const
-  {
-    return m_polluted;
-  }
-};
-
-void FuzzyTracker::pollute(FuzzyLock* ptr)
-{
-  Dout(dc::notice|flush_cf, "thread " << Thread::name() << ": Calling ptr->pollute()");
-  ptr->pollute();
-}
-
-class B : public FuzzyTracker
+class B
 {
  private:
   Mutex m_started_mutex;
@@ -94,9 +21,8 @@ class B : public FuzzyTracker
   B(bool started, bool empty) : m_started_init(started), m_empty_init(empty) { }
   friend std::ostream& operator<<(std::ostream& os, B const& b);
 
-  utils::FuzzyBool is_empty(FuzzyLock&) const
+  utils::FuzzyBool is_empty() const
   {
-    // The FuzzyLock is unused here - the parameter is only there to force the user to create a FuzzyLock object.
     Dout(dc::notice|flush_cf, "thread " << Thread::name() << ": Testing (m_empty = " << m_empty << ")");
     return m_empty;
   }
@@ -112,19 +38,18 @@ class B : public FuzzyTracker
     m_started_expected = started;
   }
 
-  void start_if(utils::FuzzyBool condition, FuzzyLock& fl)
+  void start_if(utils::FuzzyBool condition)
   {
     Dout(dc::notice|flush_cf, "thread " << Thread::name() << ": Calling start_if(" << condition << ")");
-    ASSERT(!condition.unlikely());
-    if (condition.never())
-      return;
+    // Only call this function when the condition is momentary true.
+    ASSERT(condition.is_momentary_true());
     std::lock_guard<Mutex> lk(m_started_mutex);
-    if (!condition.always() && condition.likely())
+    if (condition.is_transitory_true())
     {
-      Dout(dc::notice|flush_cf, "Testing is_polluted()");
-      if (is_empty(fl).likely())
+      Dout(dc::notice|flush_cf, "Calling is_empty()");
+      if (is_empty().is_momentary_true())
       {
-        Dout(dc::notice|flush_cf, "Ignoring call to start_if() because condition is WasTrue and is_empty() returns likely.");
+        Dout(dc::notice|flush_cf, "Ignoring call to start_if() because condition is WasTrue and is_empty() returns true.");
         return;
       }
     }
@@ -132,18 +57,18 @@ class B : public FuzzyTracker
     m_started = true;
   }
 
-  void stop_if(utils::FuzzyBool const& condition, FuzzyLock& fl)
+  void stop_if(utils::FuzzyBool const& condition)
   {
     Dout(dc::notice|flush_cf, "thread " << Thread::name() << ": Calling stop_if(" << condition << ")");
-    ASSERT(!condition.unlikely());
-    if (condition.never())
-      return;
+    // Only call this function when the condition is momentary true.
+    ASSERT(condition.is_momentary_true());
     std::lock_guard<Mutex> lk(m_started_mutex);
-    if (!condition.always() && condition.likely())      // condition == WasTrue
+    if (condition.is_transitory_true())
     {
-      if (is_empty(fl).unlikely())
+      Dout(dc::notice|flush_cf, "Calling is_empty()");
+      if (is_empty().is_momentary_false())
       {
-        Dout(dc::notice|flush_cf, "Ignoring call to stop_if() because condition is WasTrue and is_empty() returns unlikely.");
+        Dout(dc::notice|flush_cf, "Ignoring call to stop_if() because condition is WasTrue and is_empty() returns false.");
         return;
       }
     }
@@ -176,15 +101,13 @@ void thread0(B& b)
   b.set_expected(false);
   TPY;
 
-  FuzzyLock fl(b);                              // Lock
+  utils::FuzzyBool empty = b.is_empty();        // Acquire
   TPY;
 
-  utils::FuzzyBool empty = b.is_empty(fl);      // Acquire
-
-  if (empty.likely())                           // If empty, stop.
+  if (empty.is_momentary_true())                // If empty, stop.
   {
     TPY;
-    b.stop_if(empty, fl);
+    b.stop_if(empty);
   }
 }
 
@@ -194,15 +117,13 @@ void thread1(B& b)
   b.set_expected(true);
   TPY;
 
-  FuzzyLock fl(b);
+  utils::FuzzyBool empty = b.is_empty();
   TPY;
 
-  utils::FuzzyBool empty = b.is_empty(fl);
-
-  if (empty.unlikely())              // If not empty, start.
+  if (empty.is_momentary_false())               // If not empty, start.
   {
     TPY;
-    b.start_if(!empty, fl);
+    b.start_if(!empty);
   }
 }
 
@@ -239,17 +160,17 @@ std::ostream& operator<<(std::ostream& os, B const& b)
     os << "Started";
   else
     os << "Stopped";
-  if (b.m_empty.always())
+  if (b.m_empty.is_true())
     os << " (empty)";
-  else if (b.m_empty.likely())
-    os << " (likely empty)";
-  else if (b.m_empty.never())
+  else if (b.m_empty.is_transitory_true())
+    os << " (transitory empty)";
+  else if (b.m_empty.is_false())
     os << " (not empty)";
   else
-    os << " (unlikely empty)";
-  if (b.m_empty.unlikely() && !b.m_started)
+    os << " (transitory not empty)";
+  if (b.m_empty.is_momentary_false() && !b.m_started)
     os << " [ERROR]";
-  if (b.m_empty.likely() && b.m_started)
+  if (b.m_empty.is_momentary_true() && b.m_started)
     os << " [INEFFICIENT]";
   return os;
 }
