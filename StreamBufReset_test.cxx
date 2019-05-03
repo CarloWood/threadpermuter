@@ -92,13 +92,11 @@ struct PutState : public virtual Atomic
   void write()
   {
     DoutEntering(dc::notice, "PutState:write()");
-    if (pptr != block_start && pptr == read_last_gptr())
+    if (!read_need_reset() && pptr == read_last_gptr())
     {
       Dout(dc::notice, "pptr == last_gptr:");
       Dout(dc::notice, "  Setting need_reset to true.");
       set_need_reset(true);
-      Dout(dc::notice, "  Setting last_gptr to nullptr");
-      set_last_gptr(nullptr);
       Dout(dc::notice, "  Setting next_egptr to block_start.");
       set_next_egptr(block_start);
       Dout(dc::notice, "  Setting pptr to block_start.");
@@ -107,6 +105,7 @@ struct PutState : public virtual Atomic
     }
     else if (pptr == epptr)
     {
+      Dout(dc::notice, "Returning because the buffer is full.");
       return;
     }
     Dout(dc::notice, "pptr == " << (int)(pptr - block_start));
