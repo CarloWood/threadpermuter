@@ -5,6 +5,12 @@
 #include <thread>
 #include <condition_variable>
 
+#if defined(CWDEBUG) && !defined(DOXYGEN)
+NAMESPACE_DEBUG_CHANNELS_START
+extern channel_ct permutation;
+NAMESPACE_DEBUG_CHANNELS_END
+#endif
+
 namespace thread_permuter {
 
 enum state_type
@@ -58,10 +64,10 @@ class Mutex
  public:
   void lock()
   {
-    DoutEntering(dc::notice|flush_cf|continued_cf, "lock()... ");
+    DoutEntering(dc::permutation|flush_cf|continued_cf, "lock()... ");
     while (!m_mutex.try_lock())
     {
-      Dout(dc::notice|flush_cf, "Blocked on mutex.");
+      Dout(dc::permutation|flush_cf, "Blocked on mutex.");
       Thread::blocked();
     }
     Dout(dc::finish|flush_cf, "locked");
@@ -69,7 +75,7 @@ class Mutex
 
   bool try_lock()
   {
-    DoutEntering(dc::notice|flush_cf|continued_cf, "try_lock()... ");
+    DoutEntering(dc::permutation|flush_cf|continued_cf, "try_lock()... ");
     bool locked = m_mutex.try_lock();
     Dout(dc::finish|flush_cf, (locked ? "locked" : "failed"));
     return locked;
@@ -77,7 +83,7 @@ class Mutex
 
   void unlock()
   {
-    Dout(dc::notice|flush_cf, "unlock()");
+    Dout(dc::permutation|flush_cf, "unlock()");
     m_mutex.unlock();
   }
 

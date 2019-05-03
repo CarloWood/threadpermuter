@@ -78,3 +78,9 @@ void Thread::stop()
 thread_local Thread* Thread::tl_self;
 
 } // namespace thread_permuter
+
+#if defined(CWDEBUG) && !defined(DOXYGEN)
+NAMESPACE_DEBUG_CHANNELS_START
+channel_ct permutation("PERMUTATION");
+NAMESPACE_DEBUG_CHANNELS_END
+#endif

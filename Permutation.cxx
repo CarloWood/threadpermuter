@@ -15,7 +15,7 @@ inline Permutation::threads_set_type index2mask(Permutation::thi_type thi)
 // Returns true if after this step the thread is still running (not blocked and not finished).
 bool Permutation::step(thi_type thi, std::string& permutation_string)
 {
-  DoutEntering(dc::notice, "Permutation::step(" << thi << ")");
+  DoutEntering(dc::permutation, "Permutation::step(" << thi << ")");
   threads_set_type thm = index2mask(thi);
   // This should never happen because we'd never run this in the first place.
   ASSERT((thm & ~m_blocked_threads & m_running_threads).any());
@@ -41,7 +41,7 @@ bool Permutation::step(thi_type thi, std::string& permutation_string)
 // Play back the recording.
 void Permutation::play(std::string& permutation_string, bool run_complete)
 {
-  DoutEntering(dc::notice, "Permutation::play(" << run_complete << ")");
+  DoutEntering(dc::permutation, "Permutation::play(" << run_complete << ")");
   using namespace utils::bitset;
 
   thi_type const thread_end(m_threads.size());
@@ -57,7 +57,7 @@ void Permutation::play(std::string& permutation_string, bool run_complete)
 // Run an incomplete permutation to completion.
 void Permutation::complete(std::string& permuation_string)
 {
-  DoutEntering(dc::notice, "Permutation::complete()");
+  DoutEntering(dc::permutation, "Permutation::complete()");
   using namespace utils::bitset;
 
   // This may never happen.
@@ -89,8 +89,8 @@ void Permutation::complete(std::string& permuation_string)
 
 bool Permutation::next()
 {
-  DoutEntering(dc::notice, "Permutation::next()");
-  Dout(dc::notice, "Permutation before: " << *this);
+  DoutEntering(dc::permutation, "Permutation::next()");
+  Dout(dc::permutation, "Permutation before: " << *this);
   // Advance the permutation to the next.
   //
   // The algorithm here is to find the last step
@@ -145,7 +145,7 @@ bool Permutation::next()
       m_steps[si] = hi_rts.lssbi();                                                     // m_steps[si] = 4 -------'
       m_steps.resize(si + 1);                                                           // Resize m_steps to just "3 4 4".
       m_blocked.resize(si + 1);         // Note that m_blocked is still correct because it refers to what happened *before* this step.
-      Dout(dc::notice, "Permutation after: " << *this);
+      Dout(dc::permutation, "Permutation after: " << *this);
       return true;
     }
     --si;

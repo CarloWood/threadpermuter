@@ -5,7 +5,7 @@ SUBDIRS = @CW_SUBDIRS@
 AM_CPPFLAGS = -iquote $(top_srcdir) -iquote $(top_srcdir)/cwds
 
 lib_LTLIBRARIES = libthreadpermuter.la
-noinst_PROGRAMS = bstest permute_test FuzzyLock_test StateChanger_test
+noinst_PROGRAMS = bstest permute_test FuzzyLock_test StateChanger_test StreamBufReset_test
 
 libthreadpermuter_la_SOURCES = ThreadPermuter.cxx Permutation.cxx Thread.cxx
 libthreadpermuter_la_CXXFLAGS = @LIBCWD_R_FLAGS@
@@ -26,5 +26,9 @@ FuzzyLock_test_LDADD = $(top_builddir)/libthreadpermuter.la $(top_builddir)/util
 StateChanger_test_SOURCES = StateChanger_test.cxx
 StateChanger_test_CXXFLAGS = @LIBCWD_R_FLAGS@
 StateChanger_test_LDADD = $(top_builddir)/libthreadpermuter.la $(top_builddir)/utils/libutils_r.la $(top_builddir)/cwds/libcwds_r.la
+
+StreamBufReset_test_SOURCES = StreamBufReset_test.cxx
+StreamBufReset_test_CXXFLAGS = @LIBCWD_R_FLAGS@
+StreamBufReset_test_LDADD = $(top_builddir)/libthreadpermuter.la $(top_builddir)/utils/libutils_r.la $(top_builddir)/cwds/libcwds_r.la
 
 include $(srcdir)/cwm4/root_makefile_bottom.am
