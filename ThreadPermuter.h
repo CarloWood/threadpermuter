@@ -5,6 +5,7 @@
 #include "utils/BitSet.h"
 #include <functional>
 #include <string>
+#include <exception>
 
 // VectorIndex category.
 namespace vector_index_category {
@@ -47,3 +48,21 @@ class ThreadPermuter
                                                                 // once for each possible permutation.
   std::string m_permutation_string;                             // Records the permutation last executed by play().
 };
+
+#ifndef CWDEBUG
+#define TP_ASSERT(x) assert(x)
+#else
+#define TP_ASSERT(x) \
+  do \
+  { \
+    if (!(x)) \
+    { \
+      LIBCWD_TSD_DECLARATION; \
+      if (LIBCWD_DO_TSD_MEMBER_OFF(libcwd::libcw_do)) \
+        ASSERT(x); \
+      else \
+        throw PermutationFailure(#x); \
+    } \
+  } \
+  while (0)
+#endif

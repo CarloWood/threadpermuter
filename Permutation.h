@@ -17,7 +17,7 @@ class Permutation
   using threads_set_type = utils::BitSet<mask_type>;
   using thi_type = ThreadPermuter::thi_type;
 
-  Permutation(ThreadPermuter::threads_type& threads) : m_threads(threads), m_running_threads(0) { }
+  Permutation(ThreadPermuter::threads_type& threads) : m_threads(threads), m_running_threads(0), m_debug_on(false) { }
 
   bool step(thi_type thi, std::string& permutation_string);     // Play a single step on thread thi.
   void play(std::string& permutation_string, bool run_complete = true);
@@ -35,6 +35,9 @@ class Permutation
   std::vector<threads_set_type> m_blocked;      // The blocked thread just prior to the corresponding step;
   threads_set_type m_running_threads;           // A list of thread indexes that are still running after the last step in m_steps.
   threads_set_type m_blocked_threads;           // A list of thread indexes that are currently blocked on trying to lock a mutex.
+
+ public:
+  bool m_debug_on;
 
   friend std::ostream& operator<<(std::ostream& os, Permutation const& permutation);
 };

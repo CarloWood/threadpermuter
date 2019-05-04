@@ -20,7 +20,7 @@ bool Permutation::step(thi_type thi, std::string& permutation_string)
   // This should never happen because we'd never run this in the first place.
   ASSERT((thm & ~m_blocked_threads & m_running_threads).any());
   permutation_string += '0' + thi.get_value();
-  switch (m_threads[thi].step())
+  switch (m_threads[thi].step(m_debug_on))
   {
     case yielding:
       m_blocked_threads.reset();
@@ -34,6 +34,10 @@ bool Permutation::step(thi_type thi, std::string& permutation_string)
       m_running_threads &= ~index2mask(thi);
       m_blocked_threads.reset();
       break;
+    case failed:
+      m_running_threads &= ~index2mask(thi);
+      m_blocked_threads.reset();
+      throw PermutationFailure(m_threads[thi].what().c_str());
   }
   return (thm & ~m_blocked_threads & m_running_threads).any();
 }
