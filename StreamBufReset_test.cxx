@@ -119,7 +119,7 @@ struct PutState : public virtual Atomic
   void write()
   {
     DoutEntering(dc::notice, "PutState:write()");
-    if (pptr > block_start && pptr == read_last_gptr() && read_next_egptr() != nullptr)
+    if (pptr > block_start && read_next_egptr() != nullptr && pptr == read_last_gptr())
     {
       Dout(dc::notice, "Resetting buffer because next_egptr(P/n) != nullptr and  buffer is empty (pptr(P/p) == last_gptr(G/E/l)):");
       // A value of nullptr means 'block_start', but will prevent the PutThread to write to it
