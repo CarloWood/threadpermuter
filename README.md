@@ -13,13 +13,19 @@ under test:
 
 For a usage example see [permute_test.cxx](https://github.com/CarloWood/threadpermuter/blob/master/permute_test.cxx).
 
-To build that test program,
-first [get libcwd](https://github.com/CarloWood/libcwd) and configure, compile and install that.
-Then run,
+To build that test program, run,
 
     git clone --recursive https://github.com/CarloWood/threadpermuter.git
     cd threadpermuter
     ./autogen.sh
-    ./configure --enable-maintainer-mode
-    make
-    ./permute_test
+    # This must be your gitache cache directory (or some existing (empty) writable directory).
+    export GITACHE_ROOT=/opt/gitache
+    mkdir build
+    cmake -S . -B build -DCMAKE_MESSAGE_LOG_LEVEL=STATUS -DCMAKE_BUILD_TYPE=Debug -DCMAKE_VERBOSE_MAKEFILE=ON -DEnableDebugGlobal:BOOL=OFF -DCMAKE_MESSAGE_LOG_LEVEL=DEBUG
+    make -C build
+    build/permute_test
+
+If for some reason you can't set GITACHE_ROOT then alternatively you
+may download libcwd and configure, compile and install that in a path
+that cmake will find it in. See cmake/gitache-configs/libcwd_r.cmake
+for the configure options to use for libcwd.
