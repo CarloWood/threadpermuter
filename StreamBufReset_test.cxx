@@ -2,7 +2,7 @@
 #include "debug.h"
 #include "ThreadPermuter.h"
 
-char memory_block[64];
+char memory_block[32];
 char* const block_start = memory_block;
 char* const epptr = block_start + sizeof(memory_block);
 
@@ -12,7 +12,6 @@ struct Atomic
   char* next_egptr;
   char* next_egptr2;
   char* last_gptr;
-  bool need_reset;
 
  protected:
   char output_c;
@@ -71,30 +70,15 @@ struct Atomic
     return last_gptr;
   }
 
-  void set_last_gptr(char* val)
+  void set_last_gptr(char* val, bool block)
   {
+    block = block && last_gptr == val;
     last_gptr = val;
     print();
-    TPY;
-  }
-
-  bool read_need_reset()
-  {
-    bool val = need_reset;
-    TPY;
-    return val;
-  }
-
-  bool get_need_reset() const
-  {
-    return need_reset;
-  }
-
-  void set_need_reset(bool val)
-  {
-    need_reset = val;
-    print();
-    TPY;
+    if (block)
+      TPB;
+    else
+      TPY;
   }
 
   void init()
@@ -102,7 +86,6 @@ struct Atomic
     next_egptr = block_start;
     next_egptr2 = block_start;
     last_gptr = block_start;
-    need_reset = false;
     output_c = 'A';
     input_c = 'A';
   }
@@ -116,45 +99,58 @@ struct PutState : public virtual Atomic
 
   PutState() : pptr(block_start) { }
 
-  void write()
+  bool write()
   {
     DoutEntering(dc::notice, "PutState:write()");
-    if (pptr > block_start && read_next_egptr() != nullptr && pptr == read_last_gptr())
+    if (pptr != block_start &&                  // Don't start a reset cycle when pptr is already at the start of the block ;).
+        read_next_egptr() != nullptr &&         // If next_egptr is nullptr then the put area was reset, but the get area wasn't yet; don't reset again until it was.
+                                                // This read must be acquire to make sure the write to last_gptr is visible too.
+        pptr == read_last_gptr())               // If this happens while next_egptr != nullptr then the buffer is truely empty (gptr == pptr).
     {
       Dout(dc::notice, "Resetting buffer because next_egptr(P/n) != nullptr and  buffer is empty (pptr(P/p) == last_gptr(G/E/l)):");
+      // Next simulate a sync() where next_egptr is set to the beginning on the block.
+      // However, set next_egptr to nullptr to signal the GetThread that a reset is needed.
+      Dout(dc::notice, "  next_egptr2 = block_start");
+      set_next_egptr2(block_start);             // Initialize next_egptr2 that the GetThread will use once it reset itself.
+                                                // This value will not be read by the GetThread until after it sees next_egptr to be nullptr.
+                                                // Therefore this write can be relaxed.
+      Dout(dc::notice, "  next_egptr(P/n) = 0");
       // A value of nullptr means 'block_start', but will prevent the PutThread to write to it
       // until the GetThread did reset too. Nor will the PutThread reset again until that happened.
-      Dout(dc::notice, "  next_egptr2 = block_start");
-      set_next_egptr2(block_start);
-      Dout(dc::notice, "  next_egptr(P/n) = 0");
-      set_next_egptr(nullptr);
+      set_next_egptr(nullptr);                  // Atomically signal the GetThread that it must reset.
+                                                // This write must be release to flush the write of next_egptr2.
+      // The actual reset of the put area.
       Dout(dc::notice, "  pptr(P/p) = 0");
-      pptr = block_start;
+      pptr = block_start;                       // Reset ourselves.
       print();
     }
-    else if (pptr == epptr)
+    else if (pptr == epptr)                     // Buffer full? Do nothing in this test.
     {
       Dout(dc::notice, "Returning because the buffer is full (pptr(P/p) == epptr).");
-      std::cout << "full" << std::endl;
-      return;
+      TPB;
+      return false;
     }
+    // Actually write data to the buffer.
     TP_ASSERT(pptr == block_start || pptr == block_start + 32);
     std::memset(pptr, output_c, 32);
-    std::cout << "<< " << output_c << std::endl;
     ++output_c;
     pptr += 32;
     Dout(dc::notice, "Wrote 32 bytes, pptr(P/p) is now " << (int)(pptr - block_start));
     print();
+    return true;
   }
 
   void sync()
   {
     DoutEntering(dc::notice, "PutState:sync()");
-    Dout(dc::notice, "next_egptr(P) = pptr(P) (" << (int)(pptr - block_start) << ").");
-    if (read_next_egptr() == nullptr)
-      set_next_egptr2(pptr);
-    else
-      set_next_egptr(pptr);
+    // While next_egptr is nullptr, do not change its value - update next_egptr2 instead.
+    Dout(dc::notice, "next_egptr2(P) = pptr(P) (" << (int)(pptr - block_start) << ").");
+    set_next_egptr2(pptr);              // seq_cst
+    if (read_next_egptr() != nullptr)   // seq_cst
+    {
+      Dout(dc::notice, "next_egptr(P) = pptr(P) (" << (int)(pptr - block_start) << ").");
+      set_next_egptr(pptr);             // release
+    }
   }
 };
 
@@ -166,58 +162,75 @@ struct GetState : public virtual Atomic
 
   GetState() : gptr(block_start), egptr(block_start) { }
 
-  void read()
+  bool read()
   {
     DoutEntering(dc::notice, "GetState:read()");
-    Dout(dc::notice, "egptr(E/e) = next_egptr(P/n) (" << (int)(get_next_egptr() - block_start) << ").");
-    egptr = get_next_egptr();
+    if (get_next_egptr())
+      Dout(dc::notice, "egptr(E/e) = next_egptr(P/n) (" << (int)(get_next_egptr() - block_start) << ").");
+    else
+      Dout(dc::notice, "egptr(E/e) = next_egptr(P/n) (nullptr).");
+    egptr = get_next_egptr();           // acquire, to also get the data that was written to the buffer.
     print();
     TPY;
-    // As long as the get area appear empty we are not allowed to do ANYTHING - not even reset the get area.
-    // The reason for that is that setting next_egptr to block_start in the PutThread is the atomic(!) signal
-    // that a reset is necessary; it has to be atomic, so no other variable can be used for that.
-    if (gptr == egptr)
+    // If there WAS a reset then next_egptr was set to nullptr.
+    if (egptr == nullptr)
     {
-      Dout(dc::notice, "Updating last_gptr(G/E/l) because there is nothing else to read (gptr(g) == egptr(E/e) == " << (int)(gptr - block_start) << ").");
-      Dout(dc::notice, "  last_gptr(G/E/l) = gptr(g) (" << (int)(gptr - block_start) << ").");
-      set_last_gptr(gptr);
-      std::cout << "empty" << std::endl;
-      return;
-    }
-    // If there WAS a reset then next_egptr was set to nullptr at the moment that last_gptr == gptr == egptr == last_egptr == pptr > block_start,
-    // of those egptr was just reset to block_start, but gptr has not changed. Therefore the following condition will be true
-    // if and only if the PutThread set next_egptr to block_start as part of a reset before we entered this function, and after
-    // the entered the function the previous time.
-    if (gptr > egptr)
-    {
-      Dout(dc::notice|continued_cf, "Resetting get area because gptr(g) > egptr(E/e) (" << (int)(gptr - block_start) << " > ");
-      if (egptr == nullptr)
-        Dout(dc::finish, "nullptr):");
-      else
-        Dout(dc::finish, (int)(egptr - block_start) << "):");
+      Dout(dc::notice, "Resetting get area because egptr(E/e) == nullptr");
       Dout(dc::notice, "  gptr(g) = 0");
       gptr = block_start;
       Dout(dc::notice, "  last_gptr(G/E/l) = 0");
-      set_last_gptr(block_start);
-      Dout(dc::notice, "  next_egptr(P/n) = next_egptr2");
-      set_next_egptr(read_next_egptr2());
+      set_last_gptr(block_start, false);        // relaxed, is synchronized by the release (seq_cst) of the set_next_egptr below.
+      Dout(dc::notice, "  next_egptr(P/n) = block_start");
+      set_next_egptr(block_start);              // seq_cst
+      char* expected = block_start;
+      for (;;)
+      {
+        Dout(dc::notice|continued_cf, "  n2 = next_egptr2  = ");
+        char* n2 = get_next_egptr2();           // seq_cst
+        Dout(dc::finish, (int)(n2 - block_start));
+        print();
+        TPY;
+        // compare_exchange
+        if (get_next_egptr() == expected)       // acquire
+        {
+          Dout(dc::notice, "  next_egptr(P/n) = n2");
+          set_next_egptr(n2);                   // relaxed is ok (is read below in the same thread, and at the top of write(), but the delay is not important there).
+          break;        // Success
+        }
+        else
+        {
+          expected = get_next_egptr();          // acquire (may actually be relaxed).
+        }
+        // Compare exchange failed.
+      }
       Dout(dc::notice, "  egptr(E/e) = next_egptr(P/n) (" << (int)(get_next_egptr() - block_start) << ").");
       egptr = get_next_egptr();
       print();
+      // In most cases next_egptr will *still* be block_start, but lets continue reading when possible.
+      if (egptr == block_start)
+      {
+        TPB;
+        return false;
+      }
       TPY;
-      // In most cases next_egptr will *still* be block_start, so don't even bother checking that now.
-      std::cout << "reset" << std::endl;
-      return;
     }
-
+    // If the get area is empty, do nothing - but copy the current value of gptr to last_gptr.
+    // Note that we must reset (when next_egptr == nullptr) then this is never equal.
+    else if (gptr == egptr)
+    {
+      Dout(dc::notice, "Updating last_gptr(G/E/l) because there is nothing else to read (gptr(g) == egptr(E/e) == " << (int)(gptr - block_start) << ").");
+      Dout(dc::notice, "  last_gptr(G/E/l) = gptr(g) (" << (int)(gptr - block_start) << ").");
+      set_last_gptr(gptr, egptr == get_next_egptr());   // relaxed, it doesn't really matter when the PutThread sees this.
+      return false;
+    }
     TP_ASSERT(egptr - gptr >= 32);
     m_output += std::string(gptr, 32);
-    std::cout << ">> " << *gptr << std::endl;
     TP_ASSERT(*gptr == input_c);
     ++input_c;
     gptr += 32;
     Dout(dc::notice, "Read 32 bytes, gptr(g) is now " << (int)(gptr - block_start));
     print();
+    return true;
   }
 };
 
@@ -243,7 +256,6 @@ struct State : public PutState, public GetState
   {
     DoutEntering(dc::notice, "State::on_permutation_end(\"" << permutation << "\")");
     Dout(dc::notice, "output = \"" << m_output << "\".");
-    std::cout << "output = \"" << m_output << "\"." << std::endl;
   }
 
   friend std::ostream& operator<<(std::ostream& os, State const& state)
@@ -282,30 +294,29 @@ void State::print() const
     str2[0] = 'n';
   int last_gptr_offset = (get_last_gptr() - block_start) / 4 + 2;
   str1[last_gptr_offset] = gptr == get_last_gptr() ? 'G' : egptr == get_last_gptr() ? 'E' : 'l';
-  if (get_need_reset())
-    str2 += " *";
   Dout(dc::notice, str1);
   Dout(dc::notice, str2);
 }
 
 void PutThread(PutState& state)
 {
-  state.write();
-  state.sync();
-  state.write();
-  state.sync();
-  state.write();
-  state.sync();
-  state.write();
-  state.sync();
+  int count = 0;
+  do
+  {
+    count += state.write();
+    state.sync();
+  }
+  while (count != 2);
 }
 
 void GetThread(GetState& state)
 {
-  state.read();
-  state.read();
-  state.read();
-  state.read();
+  int count = 0;
+  do
+  {
+    count += state.read();
+  }
+  while (count != 2);
 }
 
 int main()
