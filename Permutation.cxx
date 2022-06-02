@@ -28,6 +28,9 @@ bool Permutation::step(thi_type thi, std::string& permutation_string)
     case blocking:
       m_blocked_threads |= index2mask(thi);
       break;
+    case blocking_with_progress:
+      m_blocked_threads = index2mask(thi);
+      break;
     case finished:
       // Reset bit thi when step() returns finished, which means that
       // that thread finished and is no longer running after this step.
@@ -71,7 +74,7 @@ void Permutation::complete(std::string& permuation_string)
   {
     threads_set_type yielding_threads = m_running_threads & ~m_blocked_threads;
     if (yielding_threads.none())
-      DoutFatal(dc::core, "Dead locked!");
+      DoutFatal(dc::core, "Dead locked (all still running threads are blocked)! While running: " << permuation_string);
     Index thi = yielding_threads.lssbi();
     m_steps.push_back(thi);
     m_blocked.push_back(m_blocked_threads);
@@ -83,12 +86,13 @@ void Permutation::complete(std::string& permuation_string)
   do
   {
     if (m_running_threads == m_blocked_threads)
-      DoutFatal(dc::core, "Dead locked!");
+      DoutFatal(dc::core, "Dead locked (last running thread is blocked)! While running: " << permuation_string);
     step(last_thi, permuation_string);
   }
   while (!m_running_threads.none());
   // We shouldn't have reset m_running_threads though.
   m_running_threads = last_thi;
+  std::cout << "Completed: " << permuation_string << std::endl;
 }
 
 bool Permutation::next()

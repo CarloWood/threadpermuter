@@ -36,11 +36,20 @@ namespace thread_permuter {
 
 enum state_type
 {
-  yielding,     // Just yielding.
-  blocking,     // This thread should not be run anymore until at least one other thread did run.
-  failed,       // This thread encountered an error condition and threw an exception.
-  finished      // Returned from m_test().
+  yielding,                     // Just yielding.
+  blocking,                     // This thread should not be run anymore until at least one other thread did run.
+  blocking_with_progress,       // This thread should not be run anymore until at least one other thread did run, all other threads are allowed to run again.
+  failed,                       // This thread encountered an error condition and threw an exception.
+  finished                      // Returned from m_test().
 };
+
+#ifdef CWDEBUG
+std::string to_string(state_type state);
+inline std::ostream& operator<<(std::ostream& os, state_type state)
+{
+  return os << to_string(state);
+}
+#endif
 
 class Thread
 {
@@ -53,6 +62,7 @@ class Thread
                                         // Returns true when m_test() returned.
   void pause(state_type state);         // Pause the thread and wake up the main thread again.
   void stop();                          // Called when all permutation have been run.
+  void made_progress() { m_progress = true; }
 
   char get_name() const { return m_thread_name; }
   PermutationFailure failure() const { return m_failure; }
@@ -68,6 +78,7 @@ class Thread
   std::mutex m_paused_mutex;
   bool m_paused;                        // True when the thread is waiting.
   bool m_debug_on;                      // Set to true when debug output must be turned on in this thread.
+  bool m_progress;                      // Set to true when TPP is used; causes the next TPB to call pause(blocking_with_progress);
   PermutationFailure m_failure;         // Error of last exception thrown.
 
   char m_thread_name;                   // Used for debugging output; set by start().
@@ -77,8 +88,10 @@ class Thread
  public:
   static void yield() { tl_self->pause(yielding); }
   static void blocked() { tl_self->pause(blocking); }
+  static void progress() { tl_self->made_progress(); }
   static void fail(PermutationFailure const& error) { tl_self->m_failure = error; tl_self->pause(failed); }
   static char name() { return tl_self->get_name(); }
+  static Thread* current() { return tl_self; }
 };
 
 // Use this instead of std::mutex.
@@ -90,26 +103,26 @@ class Mutex
  public:
   void lock()
   {
-    DoutEntering(dc::permutation|flush_cf|continued_cf, "lock()... ");
+    DoutEntering(dc::permutation|continued_cf, "Mutex::lock() [" << (void*)this << "]... ");
     while (!m_mutex.try_lock())
     {
-      Dout(dc::permutation|flush_cf, "Blocked on mutex.");
+      Dout(dc::permutation, "Blocked on mutex [" << (void*)this << "]");
       Thread::blocked();
     }
-    Dout(dc::finish|flush_cf, "locked");
+    Dout(dc::finish, "successfully locked [" << (void*)this << "]");
   }
 
   bool try_lock()
   {
-    DoutEntering(dc::permutation|flush_cf|continued_cf, "try_lock()... ");
+    DoutEntering(dc::permutation|continued_cf, "Mutex::try_lock() [" << (void*)this << "]... ");
     bool locked = m_mutex.try_lock();
-    Dout(dc::finish|flush_cf, (locked ? "locked" : "failed"));
+    Dout(dc::finish, (locked ? "locked" : "failed"));
     return locked;
   }
 
   void unlock()
   {
-    Dout(dc::permutation|flush_cf, "unlock()");
+    DoutEntering(dc::permutation, "Mutex::unlock() [" << (void*)this << "]");
     m_mutex.unlock();
   }
 
@@ -119,9 +132,29 @@ class Mutex
   }
 };
 
+class ConditionVariable
+{
+ private:
+  std::vector<Thread*> m_waiting_threads;
+
+ public:
+  void wait(std::unique_lock<Mutex>& lock);
+  void notify_one() noexcept;
+  void notify_all() noexcept;
+
+  template<typename Predicate>
+  void wait(std::unique_lock<Mutex>& lock, Predicate p)
+  {
+    while (!p())
+      wait(lock);
+  }
+};
+
 } // namespace thread_permuter
 
 // Use this to make the thread yield and either continue with a different thread or with the same thread again.
-#define TPY do { thread_permuter::Thread::yield(); } while(0)
+#define TPY do { Dout(dc::permutation, "TPY at " << __FILE__ << ":" << __LINE__); thread_permuter::Thread::yield(); } while(0)
 // Use this to make the thread yield and force the run of another thread before running this thread again.
-#define TPB do { thread_permuter::Thread::blocked(); } while(0)
+#define TPB do { Dout(dc::permutation, "TPB at " << __FILE__ << ":" << __LINE__); thread_permuter::Thread::blocked(); } while(0)
+// Use this just before a TPB if the thread made any progress, so that it is ok to run other, previously blocking threads.
+#define TPP do { Dout(dc::permutation, "TPP at " << __FILE__ << ":" << __LINE__); thread_permuter::Thread::progress(); } while(0)
