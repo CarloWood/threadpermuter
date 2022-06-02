@@ -11,10 +11,25 @@ extern channel_ct permutation;
 NAMESPACE_DEBUG_CHANNELS_END
 #endif
 
-class PermutationFailure : public std::runtime_error
+class PermutationFailure final : public std::runtime_error
 {
+  char const* m_file;
+  int m_line;
+
  public:
-  PermutationFailure(char const* msg) : std::runtime_error(msg) { }
+  PermutationFailure() : std::runtime_error("<no error>"), m_file("<no file>"), m_line(-1) { }
+  PermutationFailure(char const* msg, char const* file, int line) : std::runtime_error(msg), m_file(file), m_line(line) { }
+
+  std::string message() const
+  {
+    std::string msg("\"");
+    msg += std::runtime_error::what();
+    msg += "\" in ";
+    msg += m_file;
+    msg += ':';
+    msg += std::to_string(m_line);
+    return msg;
+  }
 };
 
 namespace thread_permuter {
@@ -40,7 +55,7 @@ class Thread
   void stop();                          // Called when all permutation have been run.
 
   char get_name() const { return m_thread_name; }
-  std::string const& what() const { return m_what; }
+  PermutationFailure failure() const { return m_failure; }
 
  private:
   std::function<void()> m_test;         // Thread entry point. The first time step() is called
@@ -53,7 +68,7 @@ class Thread
   std::mutex m_paused_mutex;
   bool m_paused;                        // True when the thread is waiting.
   bool m_debug_on;                      // Set to true when debug output must be turned on in this thread.
-  std::string m_what;                   // Error of last exception thrown.
+  PermutationFailure m_failure;         // Error of last exception thrown.
 
   char m_thread_name;                   // Used for debugging output; set by start().
 
@@ -62,7 +77,7 @@ class Thread
  public:
   static void yield() { tl_self->pause(yielding); }
   static void blocked() { tl_self->pause(blocking); }
-  static void fail(char const* what) { tl_self->m_what = what; tl_self->pause(failed); }
+  static void fail(PermutationFailure const& error) { tl_self->m_failure = error; tl_self->pause(failed); }
   static char name() { return tl_self->get_name(); }
 };
 

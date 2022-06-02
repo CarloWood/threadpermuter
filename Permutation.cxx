@@ -37,7 +37,7 @@ bool Permutation::step(thi_type thi, std::string& permutation_string)
     case failed:
       m_running_threads &= ~index2mask(thi);
       m_blocked_threads.reset();
-      throw PermutationFailure(m_threads[thi].what().c_str());
+      throw m_threads[thi].failure();
   }
   return (thm & ~m_blocked_threads & m_running_threads).any();
 }

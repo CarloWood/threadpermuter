@@ -46,7 +46,7 @@ void ThreadPermuter::run(std::string single_permutation)
       catch (PermutationFailure const& error)
       {
         Debug(libcw_do.on());
-        Dout(dc::notice, "Permutation \"" << m_permutation_string << "\" failed assertion \"" << error.what() << "\".");
+        Dout(dc::notice, "Permutation \"" << m_permutation_string << "\" failed assertion " << error.message() << ".");
         failed = true;  // Cause permutation to run again with debug output turned on.
         permutation.m_debug_on = true;
       }

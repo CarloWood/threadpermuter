@@ -4,7 +4,7 @@
 #include <mutex>
 
 #ifndef CWDEBUG
-#error "You really want to compile this with libcwd enabled (--enable-debug)"
+#error "You really want to compile this with libcwd enabled (cmake: -DEnableDebug:BOOL=ON)"
 #endif
 
 namespace thread_permuter {
@@ -28,9 +28,9 @@ void Thread::start(char thread_name, bool debug_off)
 
 void Thread::run(bool debug_off)
 {
-  Debug(NAMESPACE_DEBUG::init_thread());
   if (debug_off)
     Debug(libcw_do.off());
+  Debug(NAMESPACE_DEBUG::init_thread(std::string("thread") + m_thread_name));
   tl_self = this;                       // Allow a checkpoint to find this object back.
   pause(yielding);                      // Wait until we may enter m_test() for the first time.
   do
@@ -45,7 +45,7 @@ void Thread::run(bool debug_off)
       libcwd::debug_ct::OnOffState state;
       Debug(libcw_do.force_on(state));
 #endif
-      fail(error.what());
+      fail(error);
       continue;
     }
     pause(finished);                    // Wait till we may continue with the next permutation.

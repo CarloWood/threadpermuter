@@ -91,3 +91,6 @@ target_link_libraries(StateChanger_test ThreadPermuter::threadpermuter ${AICXX_O
 add_executable(StreamBufReset_test StreamBufReset_test.cxx)
 target_link_libraries(StreamBufReset_test ThreadPermuter::threadpermuter ${AICXX_OBJECTS_LIST})
 
+add_executable(RWLock_test RWLock_test.cxx)
+target_link_libraries(RWLock_test ThreadPermuter::threadpermuter ${AICXX_OBJECTS_LIST})
+

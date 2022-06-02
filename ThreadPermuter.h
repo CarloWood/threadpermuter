@@ -61,7 +61,7 @@ class ThreadPermuter
       if (LIBCWD_DO_TSD_MEMBER_OFF(libcwd::libcw_do)) \
         ASSERT(x); \
       else \
-        throw PermutationFailure(#x); \
+        throw PermutationFailure(#x, __FILE__, __LINE__); \
     } \
   } \
   while (0)
