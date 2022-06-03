@@ -106,7 +106,7 @@ bool Permutation::next()
   // the still running threads and replace it
   // with that thread.
   //
-  // For example, if m_steps contains the indexes,
+  // For example, if m_steps contains the indices,
   // 1, 2, 1  and at that point the running threads
   // are 0 (1 and 2 finished) then the last '1' in
   // m_steps is not replaced because 0 (the running

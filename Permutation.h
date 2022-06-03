@@ -31,10 +31,11 @@ class Permutation
  private:
   ThreadPermuter::threads_type& m_threads;      // A reference to the list of Thread objects.
 
-  std::vector<thi_type> m_steps;                // Contains a list of thread indexes that did a step;
+  std::vector<thi_type> m_steps;                // Contains a list of thread indices that did a step;
   std::vector<threads_set_type> m_blocked;      // The blocked thread just prior to the corresponding step;
-  threads_set_type m_running_threads;           // A list of thread indexes that are still running after the last step in m_steps.
-  threads_set_type m_blocked_threads;           // A list of thread indexes that are currently blocked on trying to lock a mutex.
+  threads_set_type m_running_threads;           // A list of thread indices that are still running after the last step in m_steps.
+  threads_set_type m_blocked_threads;           // A list of thread indices that are currently blocked on trying to lock a mutex.
+  threads_set_type m_waiting_threads;           // A list of thread indices that are currently waiting on a condition variable.
 
  public:
   bool m_debug_on;
