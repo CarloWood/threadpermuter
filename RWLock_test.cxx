@@ -142,17 +142,39 @@ void TestRun::test_rdlock_rd2wrlock_wrunlock()
 {
   DoutEntering(dc::notice|flush_cf, "TestRun::test_rdlock_rd2wrlock_wrunlock()");
 
-  Dout(dc::notice, "Calling rdlock()");
-  m_lock.rdlock();
-  TP_ASSERT(m_state != State::WriteLocked);
-  TP_ASSERT((m_number_of_read_locks > 0) == (m_state == State::ReadLocked));
-  Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Readlocked");
-  m_state = State::ReadLocked;
-  ++m_number_of_read_locks;
+  for (;;)
+  {
+    Dout(dc::notice, "Calling rdlock()");
+    m_lock.rdlock();
+    TP_ASSERT(m_state != State::WriteLocked);
+    TP_ASSERT((m_number_of_read_locks > 0) == (m_state == State::ReadLocked));
+    Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Readlocked");
+    m_state = State::ReadLocked;
+    ++m_number_of_read_locks;
 
-  Dout(dc::notice, "Calling rd2wrlock()");
-  ASSERT(m_state == State::ReadLocked);
-  m_lock.rd2wrlock();
+    Dout(dc::notice, "Calling rd2wrlock()");
+    ASSERT(m_state == State::ReadLocked);
+    try
+    {
+      m_lock.rd2wrlock();
+      break;
+    }
+    catch (std::exception const&)
+    {
+      TP_ASSERT(m_number_of_read_locks > 0);
+      if (--m_number_of_read_locks == 0)
+      {
+        Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Unlocked");
+        m_state = State::Unlocked;
+      }
+      else
+        TP_ASSERT(m_state == State::ReadLocked);
+      Dout(dc::notice, "Calling rdunlock()");
+      m_lock.rdunlock();
+      Dout(dc::notice, "Calling rd2wryield()");
+      m_lock.rd2wryield();
+    }
+  }
   TP_ASSERT(m_state == State::ReadLocked);
   TP_ASSERT(m_number_of_read_locks == 1);
   Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Writelocked");
@@ -178,8 +200,9 @@ int main()
   ThreadPermuter::tests_type tests =
   {
 //    [&test_run]{ test_run.test_wrlock_wrunlock(); },
-    [&test_run]{ test_run.test_rdlock_rdunlock(); },
-    [&test_run]{ test_run.test_wrlock_wr2rdlock_rdunlock(); },
+//    [&test_run]{ test_run.test_rdlock_rdunlock(); },
+//    [&test_run]{ test_run.test_wrlock_wr2rdlock_rdunlock(); },
+    [&test_run]{ test_run.test_rdlock_rd2wrlock_wrunlock(); },
     [&test_run]{ test_run.test_rdlock_rd2wrlock_wrunlock(); }
   };
 
