@@ -10,8 +10,9 @@
 
 namespace thread_permuter {
 
-Thread::Thread(std::function<void()> test) :
-  m_test(test), m_state(yielding),
+Thread::Thread(std::pair<std::function<void()>, ThreadIndex> const& args) :
+  m_thi(args.second),
+  m_test(args.first), m_state(yielding),
   m_last_permutation(false), m_paused(false), m_debug_on(false), m_progress(false),
   m_thread_name('?')
 {
@@ -112,29 +113,6 @@ void Thread::stop()
 //static
 thread_local Thread* Thread::tl_self;
 
-void ConditionVariable::wait(std::unique_lock<Mutex>& lock)
-{
-  m_waiting_threads.push_back(Thread::current());
-  DoutEntering(dc::notice|flush_cf, "ConditionVariable::wait() [" << (void*)this << "]; there are now " << m_waiting_threads.size() << " threads waiting on " << (void*)this);
-  lock.unlock();
-  TPB;
-  //FIXME: Do not always spurious wake up, instead wait for a notify.
-  lock.lock();
-  TPY;
-  m_waiting_threads.erase(std::remove(m_waiting_threads.begin(), m_waiting_threads.end(), Thread::current()), m_waiting_threads.end());
-  Dout(dc::notice|flush_cf, "Leaving ConditionVariable::wait; there are now " << m_waiting_threads.size() << " threads waiting on " << (void*)this);
-}
-
-void ConditionVariable::notify_one() noexcept
-{
-  DoutEntering(dc::notice, "ConditionVariable::notify_one() [" << (void*)this << "]");
-}
-
-void ConditionVariable::notify_all() noexcept
-{
-  DoutEntering(dc::notice, "ConditionVariable::notify_all() [" << (void*)this << "]");
-}
-
 #ifdef CWDEBUG
 std::string to_string(state_type state)
 {
@@ -143,6 +121,10 @@ std::string to_string(state_type state)
     AI_CASE_RETURN(yielding);
     AI_CASE_RETURN(blocking);
     AI_CASE_RETURN(blocking_with_progress);
+    AI_CASE_RETURN(waiting);
+    AI_CASE_RETURN(woken);
+    AI_CASE_RETURN(notify_one);
+    AI_CASE_RETURN(notify_all);
     AI_CASE_RETURN(failed);
     AI_CASE_RETURN(finished);
   }

@@ -38,9 +38,10 @@ struct TestRun
   void on_permutation_begin();
   void on_permutation_end(std::string const& permutation_string);
 
-  void test0();
-  void test1();
-  void test2();
+  void test_rdlock_rdunlock();
+  void test_wrlock_wrunlock();
+  void test_wrlock_wr2rdlock_rdunlock();
+  void test_rdlock_rd2wrlock_wrunlock();
 };
 
 void TestRun::on_permutation_begin()
@@ -55,32 +56,12 @@ void TestRun::on_permutation_end(std::string const& permutation_string)
 {
   DoutEntering(dc::notice|flush_cf, "on_permutation_end(\"" << permutation_string << "\")");
   Dout(dc::notice|flush_cf, "Result: " << m_state);
-//  ASSERT(m_state == State::Unlocked && m_number_of_read_locks == 0);
+  ASSERT(m_state == State::Unlocked && m_number_of_read_locks == 0);
 }
 
-void TestRun::test0()
+void TestRun::test_rdlock_rdunlock()
 {
-  DoutEntering(dc::notice|flush_cf, "TestRun::test1()");
-
-  Dout(dc::notice, "Calling wrlock()");
-  m_lock.wrlock();
-  TP_ASSERT(m_state == State::Unlocked);
-  TP_ASSERT(m_number_of_read_locks == 0);
-  Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Writelocked");
-  m_state = State::WriteLocked;
-
-  TP_ASSERT(m_state == State::WriteLocked);
-  Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Unlocked");
-  m_state = State::Unlocked;
-  Dout(dc::notice, "Calling wrunlock()");
-  m_lock.wrunlock();
-
-  Dout(dc::notice|flush_cf, "Leaving TestRun::test1()");
-}
-
-void TestRun::test1()
-{
-  DoutEntering(dc::notice|flush_cf, "TestRun::test0()");
+  DoutEntering(dc::notice|flush_cf, "TestRun::test_rdlock_rdunlock()");
 
   Dout(dc::notice, "Calling rdlock()");
   m_lock.rdlock();
@@ -101,7 +82,90 @@ void TestRun::test1()
   Dout(dc::notice, "Calling rdunlock()");
   m_lock.rdunlock();
 
-  Dout(dc::notice|flush_cf, "Leaving TestRun::test0()");
+  Dout(dc::notice|flush_cf, "Leaving TestRun::test_rdlock_rdunlock()");
+}
+
+void TestRun::test_wrlock_wrunlock()
+{
+  DoutEntering(dc::notice|flush_cf, "TestRun::test_wrlock_wrunlock()");
+
+  Dout(dc::notice, "Calling wrlock()");
+  m_lock.wrlock();
+  TP_ASSERT(m_state == State::Unlocked);
+  TP_ASSERT(m_number_of_read_locks == 0);
+  Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Writelocked");
+  m_state = State::WriteLocked;
+
+  TP_ASSERT(m_state == State::WriteLocked);
+  Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Unlocked");
+  m_state = State::Unlocked;
+  Dout(dc::notice, "Calling wrunlock()");
+  m_lock.wrunlock();
+
+  Dout(dc::notice|flush_cf, "Leaving TestRun::test_wrlock_wrunlock()");
+}
+
+void TestRun::test_wrlock_wr2rdlock_rdunlock()
+{
+  DoutEntering(dc::notice|flush_cf, "TestRun::test_wrlock_wr2rdlock_rdunlock()");
+
+  Dout(dc::notice, "Calling wrlock()");
+  m_lock.wrlock();
+  TP_ASSERT(m_state == State::Unlocked);
+  TP_ASSERT(m_number_of_read_locks == 0);
+  Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Writelocked");
+  m_state = State::WriteLocked;
+
+  Dout(dc::notice, "Calling wr2rdlock()");
+  TP_ASSERT(m_state == State::WriteLocked);
+  Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Readlocked");
+  m_state = State::ReadLocked;
+  ++m_number_of_read_locks;
+  m_lock.wr2rdlock();
+  TP_ASSERT(m_state == State::ReadLocked);
+
+  TP_ASSERT(m_number_of_read_locks > 0);
+  if (--m_number_of_read_locks == 0)
+  {
+    Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Unlocked");
+    m_state = State::Unlocked;
+  }
+  else
+    TP_ASSERT(m_state == State::ReadLocked);
+  Dout(dc::notice, "Calling rdunlock()");
+  m_lock.rdunlock();
+
+  Dout(dc::notice|flush_cf, "Leaving TestRun::test_wrlock_wr2rdlock_rdunlock()");
+}
+
+void TestRun::test_rdlock_rd2wrlock_wrunlock()
+{
+  DoutEntering(dc::notice|flush_cf, "TestRun::test_rdlock_rd2wrlock_wrunlock()");
+
+  Dout(dc::notice, "Calling rdlock()");
+  m_lock.rdlock();
+  TP_ASSERT(m_state != State::WriteLocked);
+  TP_ASSERT((m_number_of_read_locks > 0) == (m_state == State::ReadLocked));
+  Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Readlocked");
+  m_state = State::ReadLocked;
+  ++m_number_of_read_locks;
+
+  Dout(dc::notice, "Calling rd2wrlock()");
+  ASSERT(m_state == State::ReadLocked);
+  m_lock.rd2wrlock();
+  TP_ASSERT(m_state == State::ReadLocked);
+  TP_ASSERT(m_number_of_read_locks == 1);
+  Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Writelocked");
+  m_state = State::WriteLocked;
+  --m_number_of_read_locks;
+
+  TP_ASSERT(m_state == State::WriteLocked);
+  Dout(dc::always, "Setting m_state @ " << (void*)&m_state << " to State::Unlocked");
+  m_state = State::Unlocked;
+  Dout(dc::notice, "Calling wrunlock()");
+  m_lock.wrunlock();
+
+  Dout(dc::notice|flush_cf, "Leaving TestRun::test_rdlock_rd2wrlock_wrunlock()");
 }
 
 int main()
@@ -113,9 +177,10 @@ int main()
 
   ThreadPermuter::tests_type tests =
   {
-    [&test_run]{ test_run.test0(); },
-    [&test_run]{ test_run.test1(); },
-    [&test_run]{ test_run.test1(); }
+//    [&test_run]{ test_run.test_wrlock_wrunlock(); },
+    [&test_run]{ test_run.test_rdlock_rdunlock(); },
+    [&test_run]{ test_run.test_wrlock_wr2rdlock_rdunlock(); },
+    [&test_run]{ test_run.test_rdlock_rd2wrlock_wrunlock(); }
   };
 
   ThreadPermuter tp(
@@ -123,6 +188,7 @@ int main()
       tests,
       [&](std::string const& permutation_string){ test_run.on_permutation_end(permutation_string); });
 
+//  tp.set_limit(21);
   tp.run();
 
   Dout(dc::notice, "Success!");

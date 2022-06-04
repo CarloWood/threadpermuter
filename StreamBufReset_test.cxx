@@ -337,7 +337,7 @@ int main()
       [&](std::string const& permutation){ state.on_permutation_end(permutation); }
   );
 
-  tp.run();
+  tp.run("00000010000001000001101");
 
   Dout(dc::notice|flush_cf, "After: " << state);
 }

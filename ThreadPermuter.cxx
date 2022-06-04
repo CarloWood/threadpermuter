@@ -9,8 +9,13 @@ ThreadPermuter::ThreadPermuter(
     std::function<void()> on_permutation_begin,
     tests_type const& tests,
     std::function<void(std::string const&)> on_permutation_end)
-  : m_threads(tests.begin(), tests.end()), m_on_permutation_begin(on_permutation_begin), m_on_permutation_end(on_permutation_end)
+  : m_on_permutation_begin(on_permutation_begin), m_on_permutation_end(on_permutation_end)
 {
+  std::vector<std::pair<std::function<void()>, thi_type>> vp;
+  for (thi_type thi = tests.ibegin(); thi != tests.iend(); ++thi)
+    vp.emplace_back(tests[thi], thi);
+  utils::Vector<thread_permuter::Thread, thi_type> tmp(vp.begin(), vp.end());
+  m_threads = std::move(tmp);
 }
 
 ThreadPermuter::~ThreadPermuter()
@@ -31,6 +36,7 @@ void ThreadPermuter::run(std::string single_permutation)
   if (single_permutation.empty())
   {
     Debug(libcw_do.off());
+    int number_of_permutations = 0;
     for (;;)
     {
       // Notify that we start a new program.
@@ -42,6 +48,7 @@ void ThreadPermuter::run(std::string single_permutation)
       try
       {
         permutation.play(m_permutation_string);
+        ++number_of_permutations;
       }
       catch (PermutationFailure const& error)
       {
@@ -54,11 +61,15 @@ void ThreadPermuter::run(std::string single_permutation)
       // Notify that the program has finished.
       m_on_permutation_end(m_permutation_string);
 
-      if (!failed && !permutation.next())   // Continue with the next permutation, if any.
+      // restrict variations to the first m_limit steps.
+      if (!failed && !permutation.next(m_limit))   // Continue with the next permutation, if any.
         break;
     }
     Debug(libcw_do.on());
-    Dout(dc::notice|flush_cf, "All permutations finished.");
+    if (m_limit == std::numeric_limits<int>::max())
+      Dout(dc::notice|flush_cf, "All " << number_of_permutations << " permutations finished.");
+    else
+      Dout(dc::notice|flush_cf, "Completed " << number_of_permutations << " number of permutations.");
   }
   else
   {

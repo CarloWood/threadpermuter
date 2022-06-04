@@ -1,6 +1,8 @@
 #pragma once
 
 #include "debug.h"
+#include "utils/Vector.h"
+#include "utils/BitSet.h"
 #include <functional>
 #include <thread>
 #include <condition_variable>
@@ -10,6 +12,38 @@ NAMESPACE_DEBUG_CHANNELS_START
 extern channel_ct permutation;
 NAMESPACE_DEBUG_CHANNELS_END
 #endif
+
+// VectorIndex category.
+namespace vector_index_category {
+
+// An index that specifies the test function (and corresponding thread).
+// Initially defined by the first parameter passed to the constructor of ThreadPermuter.
+struct thread_index;
+
+} // namespace vector_index_category
+
+// A type that can be used as index into ThreadPermuter::tests_type and ThreadPermuter::threads_type.
+class ThreadIndex : public utils::VectorIndex<vector_index_category::thread_index>
+{
+  using utils::VectorIndex<vector_index_category::thread_index>::VectorIndex;
+
+ public:
+  // Allow bitset::Index to be used where ThreadIndex is required.
+  ThreadIndex(utils::bitset::Index index) : utils::VectorIndex<vector_index_category::thread_index>(index()) { }
+};
+
+namespace thread_permuter {
+
+using mask_type = uint32_t;
+using threads_set_type = utils::BitSet<mask_type>;
+
+// Allow conversion from ThreadIndex to threads_set_type.
+inline threads_set_type index2mask(ThreadIndex thi)
+{
+  return threads_set_type(mask_type{1} << thi.get_value());
+}
+
+} // namespace thread_permuter
 
 class PermutationFailure final : public std::runtime_error
 {
@@ -39,6 +73,10 @@ enum state_type
   yielding,                     // Just yielding.
   blocking,                     // This thread should not be run anymore until at least one other thread did run.
   blocking_with_progress,       // This thread should not be run anymore until at least one other thread did run, all other threads are allowed to run again.
+  waiting,                      // This thread should not be run anymore until another thread calls notify_one or notify_all on the associated condition variable.
+  woken,                        // Like yielding, but when called after a condition variable had notify_one called on it, then block all other waiting threads again.
+  notify_one,                   // This thread just called notify_one.
+  notify_all,                   // This thread just called notify_all.
   failed,                       // This thread encountered an error condition and threw an exception.
   finished                      // Returned from m_test().
 };
@@ -51,10 +89,13 @@ inline std::ostream& operator<<(std::ostream& os, state_type state)
 }
 #endif
 
+class ConditionVariable;
+
 class Thread
 {
  public:
-  Thread(std::function<void()> test);
+  Thread(std::pair<std::function<void()>, ThreadIndex> const& args);
+  ThreadIndex get_thi() const { return m_thi; }
 
   void start(char thread_name, bool debug_off); // Start the thread and prepare calling step().
   void run(bool debug_off);             // Entry point of m_thread.
@@ -63,16 +104,19 @@ class Thread
   void pause(state_type state);         // Pause the thread and wake up the main thread again.
   void stop();                          // Called when all permutation have been run.
   void made_progress() { m_progress = true; }
+  ConditionVariable* condition_variable() const { return m_condition_variable; }
 
   char get_name() const { return m_thread_name; }
   PermutationFailure failure() const { return m_failure; }
 
  private:
+  ThreadIndex m_thi;                    // The index of this thread.
   std::function<void()> m_test;         // Thread entry point. The first time step() is called
                                         // after start(), this function will be called.
   std::thread m_thread;                 // The actual thread.
   state_type m_state;
   bool m_last_permutation;              // True after all permutation have been run.
+  ConditionVariable* m_condition_variable; // Valid when pause is called with waiting, notify_one or notify_all.
 
   std::condition_variable m_paused_condition;
   std::mutex m_paused_mutex;
@@ -88,6 +132,10 @@ class Thread
  public:
   static void yield() { tl_self->pause(yielding); }
   static void blocked() { tl_self->pause(blocking); }
+  static void wait(ConditionVariable* condition_variable) { tl_self->m_condition_variable = condition_variable; tl_self->pause(waiting); }
+  static void woken(ConditionVariable* condition_variable) { tl_self->m_condition_variable = condition_variable; tl_self->pause(thread_permuter::woken); }
+  static void notify_one(ConditionVariable* condition_variable) { tl_self->m_condition_variable = condition_variable; tl_self->pause(thread_permuter::notify_one); }
+  static void notify_all(ConditionVariable* condition_variable) { tl_self->m_condition_variable = condition_variable; tl_self->pause(thread_permuter::notify_all); }
   static void progress() { tl_self->made_progress(); }
   static void fail(PermutationFailure const& error) { tl_self->m_failure = error; tl_self->pause(failed); }
   static char name() { return tl_self->get_name(); }
@@ -129,24 +177,6 @@ class Mutex
   auto native_handle()
   {
     return m_mutex.native_handle();
-  }
-};
-
-class ConditionVariable
-{
- private:
-  std::vector<Thread*> m_waiting_threads;
-
- public:
-  void wait(std::unique_lock<Mutex>& lock);
-  void notify_one() noexcept;
-  void notify_all() noexcept;
-
-  template<typename Predicate>
-  void wait(std::unique_lock<Mutex>& lock, Predicate p)
-  {
-    while (!p())
-      wait(lock);
   }
 };
 

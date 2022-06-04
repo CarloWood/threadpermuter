@@ -42,6 +42,8 @@ endif ()
 
 include(AICxxSubmodules)
 
+find_package(Threads REQUIRED)
+
 add_library(threadpermuter_ObjLib OBJECT)
 
 # Set SOURCE_DIR to the current directory.
@@ -53,8 +55,8 @@ set_property(
 # The list of source files.
 target_sources(threadpermuter_ObjLib
   PRIVATE
-    ThreadPermuter.cxx Permutation.cxx Thread.cxx
-    ThreadPermuter.h Permutation.h Thread.h
+    ThreadPermuter.cxx Permutation.cxx Thread.cxx ConditionVariable.cxx
+    ThreadPermuter.h Permutation.h Thread.h ConditionVariable.h
 )
 
 # Required include search-paths.

@@ -1,29 +1,10 @@
 #pragma once
 
 #include "Thread.h"
-#include "utils/Vector.h"
-#include "utils/BitSet.h"
 #include <functional>
 #include <string>
 #include <exception>
-
-// VectorIndex category.
-namespace vector_index_category {
-
-// An index that specifies the test function (and corresponding thread).
-// Initially defined by the first parameter passed to the constructor of ThreadPermuter.
-struct thread_index;
-
-} // namespace vector_index_category
-
-// A type that can be used as index into ThreadPermuter::tests_type and ThreadPermuter::threads_type.
-class ThreadIndex : public utils::VectorIndex<vector_index_category::thread_index>
-{
-  using utils::VectorIndex<vector_index_category::thread_index>::VectorIndex;
- public:
-  // Allow bitset::Index to be used where ThreadIndex is required.
-  ThreadIndex(utils::bitset::Index index) : utils::VectorIndex<vector_index_category::thread_index>(index()) { }
-};
+#include <limits>
 
 // An object of this type allows one to explore
 // the possible results of running two or more
@@ -39,6 +20,7 @@ class ThreadPermuter
   ThreadPermuter(std::function<void()> on_permutation_begin, tests_type const& tests, std::function<void(std::string const&)> on_permutation_end);
   ~ThreadPermuter();
 
+  void set_limit(int limit) { m_limit = limit; }
   void run(std::string permutation = {});
 
  private:
@@ -47,6 +29,7 @@ class ThreadPermuter
   std::function<void(std::string const&)> m_on_permutation_end; // This callback is called every time after all tests finished,
                                                                 // once for each possible permutation.
   std::string m_permutation_string;                             // Records the permutation last executed by play().
+  int m_limit = std::numeric_limits<int>::max();
 };
 
 #ifndef CWDEBUG
@@ -66,3 +49,5 @@ class ThreadPermuter
   } \
   while (0)
 #endif
+
+#include "ConditionVariable.h"
