@@ -21,7 +21,7 @@ class ThreadPermuter
   ~ThreadPermuter();
 
   void set_limit(int limit) { m_limit = limit; }
-  void run(std::string permutation = {});
+  void run(std::string permutation = {}, bool continue_running = false, bool debug_on = false);
 
  private:
   threads_type m_threads;                                       // The functions, one for each thread, that need to be run.

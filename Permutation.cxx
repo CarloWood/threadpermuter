@@ -30,7 +30,7 @@ bool Permutation::step(thi_type thi, std::string& permutation_string)
       m_blocked_threads = index2mask(thi);
       break;
     case waiting:
-      ASSERT((m_waiting_threads & index2mask(thi)).none());
+      //ASSERT((m_waiting_threads & index2mask(thi)).none());
       // Since we just unlocked a mutex, mark this always as progress (index2mask(thi) is going to be set again through m_waiting_threads at function exit).
       m_blocked_threads.reset();
       Dout(dc::permutation|continued_cf, "Adding thread " << thi << " to m_waiting_threads (" << m_waiting_threads << "). Result: ");
@@ -72,6 +72,7 @@ bool Permutation::step(thi_type thi, std::string& permutation_string)
       }
       Dout(dc::permutation|continued_cf, "Removing " << cv->waiting_threads() << " from m_waiting_threads (" << m_waiting_threads <<") Result: ");
       m_waiting_threads &= ~cv->waiting_threads();
+      cv->clear_waiting_threads();
       Dout(dc::finish, m_waiting_threads);
       break;
     }
@@ -102,8 +103,17 @@ void Permutation::play(std::string& permutation_string, bool run_complete)
   m_blocked_threads.reset();                            // Nothing is blocked.
   m_waiting_threads.reset();                            // Nothing is waiting.
   m_woken_threads.reset();                              // Nothing was woken up temporarily.
+  bool first_run = m_blocked.empty();
   for (auto thi : m_steps)
+  {
+    if (first_run)
+    {
+      m_blocked.push_back(m_blocked_threads);
+      m_waiting.push_back(m_waiting_threads);
+      m_woken.push_back(m_woken_threads);
+    }
     step(thi, permutation_string);
+  }
   // Complete the permutation by running all remaining threads till they are finished too, if so requested.
   if (run_complete && m_running_threads.any())
     complete(permutation_string);
@@ -187,6 +197,8 @@ bool Permutation::next(int limit)
   // Let si be the index into m_steps and start
   // scanning from the right-most position.
   int si = m_steps.size();
+  ASSERT(m_blocked.size() == si);
+  ASSERT(m_waiting.size() == si && m_woken.size() == si);
   while (--si >= limit)
     m_running_threads |= index2mask(m_steps[si]);
   while (si >= 0)

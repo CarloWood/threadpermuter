@@ -22,18 +22,21 @@ ThreadPermuter::~ThreadPermuter()
 {
 }
 
-void ThreadPermuter::run(std::string single_permutation)
+void ThreadPermuter::run(std::string single_permutation, bool continue_running, bool debug_on)
 {
   Permutation permutation(m_threads);
 
-  bool debug_off = single_permutation.empty();
+  bool debug_off = !debug_on && (single_permutation.empty() || continue_running);
 
   // Start all threads.
   thi_type const end(m_threads.size());
   for (thi_type thi(0); thi < end; ++thi)
     m_threads[thi].start('0' + thi.get_value(), debug_off);
 
-  if (single_permutation.empty())
+  if (!single_permutation.empty())
+    permutation.program(single_permutation);
+
+  if (single_permutation.empty() || continue_running)
   {
     Debug(libcw_do.off());
     int number_of_permutations = 0;
@@ -73,7 +76,6 @@ void ThreadPermuter::run(std::string single_permutation)
   }
   else
   {
-    permutation.program(single_permutation);
     m_on_permutation_begin();
     m_permutation_string.clear();
     permutation.play(m_permutation_string);

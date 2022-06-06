@@ -9,6 +9,7 @@ class ConditionVariable
 {
  private:
   threads_set_type m_waiting_threads;
+  int m_was_notify_one;
 
  public:
   ConditionVariable();
@@ -16,6 +17,7 @@ class ConditionVariable
   void wait(std::unique_lock<Mutex>& lock);
   void notify_one() noexcept;
   void notify_all() noexcept;
+  void clear_waiting_threads();
 
   threads_set_type waiting_threads() const { return m_waiting_threads; }
 

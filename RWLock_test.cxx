@@ -173,6 +173,8 @@ void TestRun::test_rdlock_rd2wrlock_wrunlock()
       m_lock.rdunlock();
       Dout(dc::notice, "Calling rd2wryield()");
       m_lock.rd2wryield();
+      // Instead of going to the top and try again; abort (do nothing)!
+      return;
     }
   }
   TP_ASSERT(m_state == State::ReadLocked);
@@ -203,6 +205,7 @@ int main()
 //    [&test_run]{ test_run.test_rdlock_rdunlock(); },
 //    [&test_run]{ test_run.test_wrlock_wr2rdlock_rdunlock(); },
     [&test_run]{ test_run.test_rdlock_rd2wrlock_wrunlock(); },
+    [&test_run]{ test_run.test_rdlock_rd2wrlock_wrunlock(); },
     [&test_run]{ test_run.test_rdlock_rd2wrlock_wrunlock(); }
   };
 
@@ -211,8 +214,9 @@ int main()
       tests,
       [&](std::string const& permutation_string){ test_run.on_permutation_end(permutation_string); });
 
-//  tp.set_limit(21);
-  tp.run();
+//  tp.set_limit(18);
+//  tp.run();
+  tp.run("011", true);
 
   Dout(dc::notice, "Success!");
 }
