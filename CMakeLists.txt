@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14...3.23)
+cmake_minimum_required(VERSION 3.14...3.30)
 
 # Compile all subdirectories with the same standard.
 set(CMAKE_CXX_STANDARD 20)
@@ -45,12 +45,6 @@ include(AICxxSubmodules)
 find_package(Threads REQUIRED)
 
 add_library(threadpermuter_ObjLib OBJECT)
-
-# Set SOURCE_DIR to the current directory.
-set_property(
-  TARGET threadpermuter_ObjLib
-  PROPERTY SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
-)
 
 # The list of source files.
 target_sources(threadpermuter_ObjLib
